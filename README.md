@@ -19,12 +19,20 @@ Other upstream modes are launched unchanged.
 
 ## Install
 
+### mise
+
 Release archives use conventional operating-system and architecture names so the
 mise GitHub backend can select them directly:
 
 ```text
 mise use github:0hirume/luau-lsp-roblox
 ```
+
+### Manual
+
+Download the archive for your operating system and architecture from the
+[latest release](https://github.com/0hirume/luau-lsp-roblox/releases/latest),
+then extract its contents into a directory on `PATH`.
 
 Managed Roblox mode, `PluginSecurity`, Roblox definitions and documentation,
 dynamic FFlag synchronization, and automatic Rojo sourcemaps are enabled by
@@ -73,26 +81,3 @@ use the settings classified in [`upstream/compatibility.json`](upstream/compatib
 
 The Studio bridge binds only to `127.0.0.1`. It preserves `/full`, `/clear`, and
 `/get-file-paths` from the upstream VS Code adapter and stops with the LSP session.
-
-## Development
-
-The project treats warnings as errors and enables Clippy's `all`, `pedantic`, and
-`nursery` groups together with explicit bans on unsafe code, panics, unwraps,
-expects, TODOs, and unimplemented paths. Lint suppressions are not used.
-
-```text
-cargo fmt --check
-cargo clippy --all-targets --all-features --locked -- -D warnings
-cargo test --all-targets --all-features --locked
-```
-
-`cargo release <level> --execute` bumps and commits the version, creates a
-`v<version>` tag, and pushes the commit and tag to `origin`. The pushed tag starts
-the GitHub Release workflow. This package cannot be published to a Cargo registry.
-
-Pinned upstream metadata and release-asset hashes live in
-[`upstream/manifest.json`](upstream/manifest.json). Run `nu scripts/upstream.nu`
-to update to the latest stable tag, or pass an exact version. The updater preserves
-classifications only for settings whose schemas did not change; added or changed
-settings must be explicitly classified before `nu scripts/upstream.nu --check`
-and the Rust test suite pass.
