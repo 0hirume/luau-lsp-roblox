@@ -1,0 +1,366 @@
+{
+  "upstream_version": "1.69.0",
+  "upstream_commit": "2f42ede46764cfcc6ad569a395c38bbfd3878342",
+  "settings": {
+    "luau.trace.server": {
+      "class": "unsupported",
+      "reason": "VS Code client tracing is editor-owned; use the editor's standard LSP trace support."
+    },
+    "luau-lsp.server.path": {
+      "class": "unsupported",
+      "reason": "The distribution owns and pins its private upstream executable; use --upstream only for wrapper development."
+    },
+    "luau-lsp.server.communicationChannel": {
+      "class": "partial",
+      "reason": "Managed Roblox sessions require stdio so the wrapper can proxy standard LSP; standard sessions pass upstream pipe arguments through."
+    },
+    "luau-lsp.server.delayStartup": {
+      "class": "adapted",
+      "reason": "Translated to the upstream --delay-startup argument."
+    },
+    "luau-lsp.server.crashReporting.enabled": {
+      "class": "adapted",
+      "reason": "Translated to upstream crash-reporting arguments when the bundled build supports them."
+    },
+    "luau-lsp.server.baseLuaurc": {
+      "class": "adapted",
+      "reason": "Translated to the upstream --base-luaurc argument."
+    },
+    "luau-lsp.ignoreGlobs": {
+      "class": "forwarded",
+      "reason": "Implemented by the language server."
+    },
+    "luau-lsp.platform.type": {
+      "class": "adapted",
+      "reason": "Selects managed Roblox mode or transparent standard mode before server startup."
+    },
+    "luau-lsp.sourcemap.enabled": {
+      "class": "adapted",
+      "reason": "Controls wrapper-owned sourcemap monitoring and is also forwarded to the server."
+    },
+    "luau-lsp.sourcemap.autogenerate": {
+      "class": "adapted",
+      "reason": "Controls the wrapper-owned generator process."
+    },
+    "luau-lsp.sourcemap.rojoPath": {
+      "class": "adapted",
+      "reason": "Selects the Rojo executable launched by the wrapper."
+    },
+    "luau-lsp.sourcemap.rojoProjectFile": {
+      "class": "adapted",
+      "reason": "Selects the Rojo project used by the wrapper."
+    },
+    "luau-lsp.sourcemap.includeNonScripts": {
+      "class": "adapted",
+      "reason": "Translated to Rojo's --include-non-scripts argument."
+    },
+    "luau-lsp.sourcemap.sourcemapFile": {
+      "class": "adapted",
+      "reason": "Selects the generated file monitored by the wrapper and read by the server."
+    },
+    "luau-lsp.sourcemap.generatorCommand": {
+      "class": "adapted",
+      "reason": "Parsed without a shell and launched as a session-owned process."
+    },
+    "luau-lsp.sourcemap.useVSCodeWatcher": {
+      "class": "adapted",
+      "reason": "Reproduced with an editor-neutral workspace file poller."
+    },
+    "luau-lsp.format.convertQuotes": {
+      "class": "partial",
+      "reason": "The server's standard on-type edit is forwarded, but a private editor cursor command cannot be reproduced portably."
+    },
+    "luau-lsp.fflags.enableByDefault": {
+      "class": "adapted",
+      "reason": "Translated to upstream flag startup behavior."
+    },
+    "luau-lsp.fflags.enableNewSolver": {
+      "class": "adapted",
+      "reason": "Enables LuauSolverV2 only when the bundled server advertises that flag."
+    },
+    "luau-lsp.fflags.sync": {
+      "class": "adapted",
+      "reason": "The wrapper intersects live Roblox values with the bundled server's --show-flags registry."
+    },
+    "luau-lsp.fflags.override": {
+      "class": "adapted",
+      "reason": "Validated against the bundled registry and applied after synchronized values."
+    },
+    "luau-lsp.diagnostics.includeDependents": {
+      "class": "forwarded",
+      "reason": "Implemented by the language server."
+    },
+    "luau-lsp.diagnostics.workspace": {
+      "class": "forwarded",
+      "reason": "Implemented by the language server."
+    },
+    "luau-lsp.diagnostics.strictDatamodelTypes": {
+      "class": "forwarded",
+      "reason": "Implemented by the language server."
+    },
+    "luau-lsp.diagnostics.pullOnChange": {
+      "class": "unsupported",
+      "reason": "Diagnostic pull scheduling belongs to the LSP client; configure it in the editor."
+    },
+    "luau-lsp.diagnostics.pullOnSave": {
+      "class": "unsupported",
+      "reason": "Diagnostic pull scheduling belongs to the LSP client; configure it in the editor."
+    },
+    "luau-lsp.types.definitionFiles": {
+      "class": "adapted",
+      "reason": "Paths and URLs are resolved before startup and supplied through upstream definition arguments."
+    },
+    "luau-lsp.types.documentationFiles": {
+      "class": "adapted",
+      "reason": "Paths and URLs are resolved before startup and supplied through upstream documentation arguments."
+    },
+    "luau-lsp.types.disabledGlobals": {
+      "class": "forwarded",
+      "reason": "Implemented by the language server."
+    },
+    "luau-lsp.types.roblox": {
+      "class": "adapted",
+      "reason": "Deprecated alias retained for automatic Roblox definitions."
+    },
+    "luau-lsp.types.robloxSecurityLevel": {
+      "class": "adapted",
+      "reason": "Selects the downloaded Roblox definition set before startup."
+    },
+    "luau-lsp.inlayHints.parameterNames": {
+      "class": "forwarded",
+      "reason": "Implemented by the language server."
+    },
+    "luau-lsp.inlayHints.variableTypes": {
+      "class": "forwarded",
+      "reason": "Implemented by the language server."
+    },
+    "luau-lsp.inlayHints.parameterTypes": {
+      "class": "forwarded",
+      "reason": "Implemented by the language server."
+    },
+    "luau-lsp.inlayHints.functionReturnTypes": {
+      "class": "forwarded",
+      "reason": "Implemented by the language server."
+    },
+    "luau-lsp.inlayHints.hideHintsForErrorTypes": {
+      "class": "forwarded",
+      "reason": "Implemented by the language server."
+    },
+    "luau-lsp.inlayHints.hideHintsForMatchingParameterNames": {
+      "class": "forwarded",
+      "reason": "Implemented by the language server."
+    },
+    "luau-lsp.inlayHints.typeHintMaxLength": {
+      "class": "forwarded",
+      "reason": "Implemented by the language server."
+    },
+    "luau-lsp.inlayHints.makeInsertable": {
+      "class": "forwarded",
+      "reason": "Implemented through standard LSP inlay hint edits when the client supports them."
+    },
+    "luau-lsp.hover.enabled": {
+      "class": "forwarded",
+      "reason": "Implemented by the language server."
+    },
+    "luau-lsp.hover.showTableKinds": {
+      "class": "forwarded",
+      "reason": "Implemented by the language server."
+    },
+    "luau-lsp.hover.multilineFunctionDefinitions": {
+      "class": "forwarded",
+      "reason": "Implemented by the language server."
+    },
+    "luau-lsp.hover.strictDatamodelTypes": {
+      "class": "forwarded",
+      "reason": "Implemented by the language server."
+    },
+    "luau-lsp.hover.includeStringLength": {
+      "class": "forwarded",
+      "reason": "Implemented by the language server."
+    },
+    "luau-lsp.completion.enabled": {
+      "class": "forwarded",
+      "reason": "Implemented by the language server."
+    },
+    "luau-lsp.autocompleteEnd": {
+      "class": "partial",
+      "reason": "Deprecated editor command; portable completion edits work only when exposed by the client's standard LSP behavior."
+    },
+    "luau-lsp.completion.autocompleteEnd": {
+      "class": "partial",
+      "reason": "Portable completion edits work only when exposed by the client's standard LSP behavior; private editor commands are unavailable."
+    },
+    "luau-lsp.completion.addParentheses": {
+      "class": "forwarded",
+      "reason": "Implemented by the language server."
+    },
+    "luau-lsp.completion.addTabstopAfterParentheses": {
+      "class": "forwarded",
+      "reason": "Implemented by the language server."
+    },
+    "luau-lsp.completion.fillCallArguments": {
+      "class": "forwarded",
+      "reason": "Implemented by the language server."
+    },
+    "luau-lsp.completion.showPropertiesOnMethodCall": {
+      "class": "forwarded",
+      "reason": "Implemented by the language server."
+    },
+    "luau-lsp.completion.showKeywords": {
+      "class": "forwarded",
+      "reason": "Implemented by the language server."
+    },
+    "luau-lsp.completion.showAnonymousAutofilledFunction": {
+      "class": "forwarded",
+      "reason": "Deprecated alias implemented by the language server."
+    },
+    "luau-lsp.completion.anonymousAutofilledFunction.enabled": {
+      "class": "forwarded",
+      "reason": "Implemented by the language server."
+    },
+    "luau-lsp.completion.anonymousAutofilledFunction.addTypeAnnotations": {
+      "class": "forwarded",
+      "reason": "Implemented by the language server."
+    },
+    "luau-lsp.completion.anonymousAutofilledFunction.addTabstopForParameters": {
+      "class": "forwarded",
+      "reason": "Implemented by the language server."
+    },
+    "luau-lsp.completion.showDeprecatedItems": {
+      "class": "forwarded",
+      "reason": "Implemented by the language server."
+    },
+    "luau-lsp.completion.suggestImports": {
+      "class": "forwarded",
+      "reason": "Deprecated alias implemented by the language server."
+    },
+    "luau-lsp.completion.imports.enabled": {
+      "class": "forwarded",
+      "reason": "Implemented by the language server."
+    },
+    "luau-lsp.completion.imports.suggestServices": {
+      "class": "forwarded",
+      "reason": "Implemented by the language server."
+    },
+    "luau-lsp.completion.imports.includedServices": {
+      "class": "forwarded",
+      "reason": "Implemented by the language server."
+    },
+    "luau-lsp.completion.imports.excludedServices": {
+      "class": "forwarded",
+      "reason": "Implemented by the language server."
+    },
+    "luau-lsp.completion.imports.suggestRequires": {
+      "class": "forwarded",
+      "reason": "Implemented by the language server."
+    },
+    "luau-lsp.completion.imports.requireStyle": {
+      "class": "forwarded",
+      "reason": "Implemented by the language server."
+    },
+    "luau-lsp.completion.imports.stringRequires.enabled": {
+      "class": "forwarded",
+      "reason": "Implemented by the language server's Roblox platform."
+    },
+    "luau-lsp.completion.imports.separateGroupsWithLine": {
+      "class": "forwarded",
+      "reason": "Implemented by the language server."
+    },
+    "luau-lsp.completion.imports.useConst": {
+      "class": "forwarded",
+      "reason": "Implemented by the language server."
+    },
+    "luau-lsp.completion.imports.ignoreGlobs": {
+      "class": "forwarded",
+      "reason": "Implemented by the language server."
+    },
+    "luau-lsp.completion.enableFragmentAutocomplete": {
+      "class": "forwarded",
+      "reason": "Implemented by the language server."
+    },
+    "luau-lsp.signatureHelp.enabled": {
+      "class": "forwarded",
+      "reason": "Implemented by the language server."
+    },
+    "luau-lsp.studioPlugin.enabled": {
+      "class": "adapted",
+      "reason": "Controls the wrapper-owned loopback Studio bridge."
+    },
+    "luau-lsp.studioPlugin.port": {
+      "class": "adapted",
+      "reason": "Selects the loopback Studio bridge port."
+    },
+    "luau-lsp.studioPlugin.maximumRequestBodySize": {
+      "class": "adapted",
+      "reason": "Limits Studio request bodies before JSON parsing."
+    },
+    "luau-lsp.plugin.enabled": {
+      "class": "adapted",
+      "reason": "Deprecated alias for studioPlugin.enabled."
+    },
+    "luau-lsp.plugin.port": {
+      "class": "adapted",
+      "reason": "Deprecated alias for studioPlugin.port."
+    },
+    "luau-lsp.plugin.maximumRequestBodySize": {
+      "class": "adapted",
+      "reason": "Deprecated alias for studioPlugin.maximumRequestBodySize."
+    },
+    "luau-lsp.require.fileAliases": {
+      "class": "forwarded",
+      "reason": "Deprecated setting implemented by the language server."
+    },
+    "luau-lsp.require.directoryAliases": {
+      "class": "forwarded",
+      "reason": "Deprecated setting implemented by the language server."
+    },
+    "luau-lsp.require.useOriginalRequireByStringSemantics": {
+      "class": "forwarded",
+      "reason": "Deprecated setting implemented by the language server."
+    },
+    "luau-lsp.index.enabled": {
+      "class": "forwarded",
+      "reason": "Implemented by the language server."
+    },
+    "luau-lsp.index.maxFiles": {
+      "class": "forwarded",
+      "reason": "Implemented by the language server."
+    },
+    "luau-lsp.bytecode.debugLevel": {
+      "class": "forwarded",
+      "reason": "Implemented by upstream compiler inspection requests."
+    },
+    "luau-lsp.bytecode.typeInfoLevel": {
+      "class": "forwarded",
+      "reason": "Implemented by upstream compiler inspection requests."
+    },
+    "luau-lsp.bytecode.vectorLib": {
+      "class": "forwarded",
+      "reason": "Implemented by upstream compiler inspection requests."
+    },
+    "luau-lsp.bytecode.vectorCtor": {
+      "class": "forwarded",
+      "reason": "Implemented by upstream compiler inspection requests."
+    },
+    "luau-lsp.bytecode.vectorType": {
+      "class": "forwarded",
+      "reason": "Implemented by upstream compiler inspection requests."
+    },
+    "luau-lsp.plugins.enabled": {
+      "class": "forwarded",
+      "reason": "Implemented by the language server."
+    },
+    "luau-lsp.plugins.paths": {
+      "class": "forwarded",
+      "reason": "Implemented by the language server."
+    },
+    "luau-lsp.plugins.timeoutMs": {
+      "class": "forwarded",
+      "reason": "Implemented by the language server."
+    },
+    "luau-lsp.plugins.fileSystem.enabled": {
+      "class": "forwarded",
+      "reason": "Implemented by the language server."
+    }
+  }
+}

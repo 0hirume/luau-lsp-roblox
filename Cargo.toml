@@ -1,0 +1,52 @@
+[package]
+name = "luau-lsp-roblox"
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.85"
+description = "Editor-neutral Roblox runtime wrapper for luau-lsp"
+readme = "README.md"
+license = "MIT"
+keywords = ["lsp", "luau", "roblox", "rojo"]
+categories = ["command-line-utilities", "development-tools"]
+publish = false
+
+[package.metadata.release]
+publish = false
+push = true
+tag = true
+tag-name = "v{{version}}"
+
+[[bin]]
+name = "luau-lsp"
+path = "src/main.rs"
+
+[dependencies]
+clap = { version = "4.6.5", features = ["derive"] }
+serde = { version = "1.0.219", features = ["derive"] }
+serde_json = "1.0.140"
+ureq = { version = "2.12.1", default-features = false, features = ["tls"] }
+
+[lints.clippy]
+all = { level = "deny", priority = -1 }
+dbg_macro = "deny"
+expect_used = "deny"
+nursery = { level = "deny", priority = -1 }
+panic = "deny"
+pedantic = { level = "deny", priority = -1 }
+todo = "deny"
+unimplemented = "deny"
+unwrap_used = "deny"
+
+[lints.rust]
+missing_docs = "deny"
+non_ascii_idents = "deny"
+rust_2018_idioms = { level = "deny", priority = -1 }
+unsafe_code = "forbid"
+unused_lifetimes = "deny"
+unused_qualifications = "deny"
+warnings = "deny"
+
+[profile.release]
+strip = true
+lto = "thin"
+codegen-units = 1
