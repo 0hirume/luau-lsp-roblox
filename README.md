@@ -23,7 +23,7 @@ Release archives use conventional operating-system and architecture names so the
 mise GitHub backend can select them directly:
 
 ```text
-mise use github:<owner>/luau-lsp-roblox
+mise use github:0hirume/luau-lsp-roblox
 ```
 
 Managed Roblox mode, `PluginSecurity`, Roblox definitions and documentation,
