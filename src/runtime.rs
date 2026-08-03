@@ -15,6 +15,7 @@ use crate::args::Args;
 use crate::assets::{self, Security};
 use crate::config::{Settings, normalize_change, normalize_response};
 use crate::lsp::{self, Initialize};
+use crate::process;
 use crate::services;
 use crate::{Result, error};
 
@@ -25,6 +26,9 @@ use crate::{Result, error};
 /// Returns an error when arguments, configuration, resources, or a child process
 /// cannot be prepared safely.
 pub fn run() -> Result<u8> {
+    if let Some(result) = process::run_guard() {
+        return result;
+    }
     let arguments = Args::parse()?;
     if arguments.help {
         std::io::stdout()
@@ -135,6 +139,7 @@ fn managed(mut arguments: Args, upstream_path: &Path) -> Result<u8> {
         let _result = client_reader.join();
     }
     let _result = process.server_reader.join();
+    let _result = process.server_stderr.join();
     drop(process.client);
     if normal_shutdown {
         let _result = process.client_writer.join();
@@ -222,6 +227,7 @@ struct ProcessIo {
     upstream_writer: thread::JoinHandle<()>,
     client_writer: thread::JoinHandle<()>,
     server_reader: thread::JoinHandle<()>,
+    server_stderr: thread::JoinHandle<()>,
 }
 
 fn terminate_process(process: &mut ProcessIo) {
@@ -237,7 +243,7 @@ fn start_process(upstream_path: &Path, arguments: &[OsString]) -> Result<Process
         .args(arguments)
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
-        .stderr(Stdio::inherit())
+        .stderr(Stdio::piped())
         .spawn()?;
     let child_stdin = child
         .stdin
@@ -247,6 +253,10 @@ fn start_process(upstream_path: &Path, arguments: &[OsString]) -> Result<Process
         .stdout
         .take()
         .ok_or_else(|| error("failed to open bundled server stdout"))?;
+    let child_stderr = child
+        .stderr
+        .take()
+        .ok_or_else(|| error("failed to open bundled server stderr"))?;
     let stop = Arc::new(AtomicBool::new(false));
     let pending = Arc::new(Mutex::new(BTreeSet::<String>::new()));
     let (upstream, upstream_rx) = mpsc::channel::<Value>();
@@ -254,6 +264,7 @@ fn start_process(upstream_path: &Path, arguments: &[OsString]) -> Result<Process
     let upstream_writer = start_upstream_writer(child_stdin, upstream_rx);
     let client_writer = start_client_writer(client_rx, Arc::clone(&stop));
     let server_reader = start_server_reader(child_stdout, Arc::clone(&pending), client.clone());
+    let server_stderr = process::forward_stderr(child_stderr);
     Ok(ProcessIo {
         child,
         stop,
@@ -263,6 +274,7 @@ fn start_process(upstream_path: &Path, arguments: &[OsString]) -> Result<Process
         upstream_writer,
         client_writer,
         server_reader,
+        server_stderr,
     })
 }
 

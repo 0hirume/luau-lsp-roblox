@@ -4,6 +4,7 @@ mod args;
 mod assets;
 mod config;
 mod lsp;
+mod process;
 mod runtime;
 mod services;
 

@@ -4,7 +4,6 @@ use std::hash::{Hash, Hasher as _};
 use std::io::{Read as _, Write as _};
 use std::net::{TcpListener, TcpStream};
 use std::path::{Path, PathBuf};
-use std::process::{Command, Stdio};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, mpsc};
 use std::thread::{self, JoinHandle};
@@ -14,6 +13,7 @@ use serde_json::{Value, json};
 
 use crate::config::Settings;
 use crate::lsp;
+use crate::process::Guard;
 use crate::{Result, error};
 
 const POLL_INTERVAL: Duration = Duration::from_millis(300);
@@ -194,18 +194,11 @@ fn run_generator(
     client: &mpsc::Sender<Value>,
     stop: &AtomicBool,
 ) -> bool {
-    let Some((program, arguments)) = command.split_first() else {
+    let Some((program, _arguments)) = command.split_first() else {
         let _result = client.send(lsp::log(1, "sourcemap generator command is empty"));
         return false;
     };
-    let mut child = match Command::new(program)
-        .args(arguments)
-        .current_dir(root)
-        .stdin(Stdio::null())
-        .stdout(Stdio::null())
-        .stderr(Stdio::inherit())
-        .spawn()
-    {
+    let mut child = match Guard::spawn(command, root) {
         Ok(child) => child,
         Err(source) => {
             let _result = client.send(lsp::log(
@@ -218,7 +211,17 @@ fn run_generator(
 
     while !stop.load(Ordering::Acquire) {
         match child.try_wait() {
-            Ok(Some(status)) => {
+            Ok(Some(_status)) => {
+                let status = match child.wait() {
+                    Ok(status) => status,
+                    Err(source) => {
+                        let _result = client.send(lsp::log(
+                            1,
+                            format!("failed to reap sourcemap generator: {source}"),
+                        ));
+                        return false;
+                    }
+                };
                 if !status.success() {
                     let _result = client.send(lsp::log(
                         1,
@@ -237,8 +240,12 @@ fn run_generator(
             }
         }
     }
-    let _result = child.kill();
-    let _result = child.wait();
+    if let Err(source) = child.wait() {
+        let _result = client.send(lsp::log(
+            1,
+            format!("failed to stop sourcemap generator: {source}"),
+        ));
+    }
     false
 }
 
