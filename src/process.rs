@@ -7,6 +7,8 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::thread;
 use std::time::Duration;
 
+use command_group::CommandGroup as _;
+
 use crate::{Result, error};
 
 const GUARD_ENV: &str = "LUAU_LSP_ROBLOX_GUARD";
@@ -90,13 +92,14 @@ fn supervise(arguments: Vec<OsString>) -> Result<u8> {
     let program = arguments
         .next()
         .ok_or_else(|| error("process guard target is missing"))?;
-    let mut child = Command::new(program)
+    let mut command = Command::new(program);
+    command
         .args(arguments)
         .env_remove(GUARD_ENV)
         .stdin(Stdio::null())
         .stdout(Stdio::null())
-        .stderr(Stdio::inherit())
-        .spawn()?;
+        .stderr(Stdio::inherit());
+    let mut child = command.group_spawn()?;
     let closed = Arc::new(AtomicBool::new(false));
     let reader_closed = Arc::clone(&closed);
     thread::spawn(move || {
