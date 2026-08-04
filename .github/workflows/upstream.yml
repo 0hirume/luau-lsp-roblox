@@ -14,21 +14,21 @@ concurrency:
 
 jobs:
   update:
-    name: Update upstream pin
+    name: update upstream pin
     runs-on: ubuntu-latest
     permissions:
-      contents: write # Required to push the generated update branch.
-      pull-requests: write # Required to create or update the review PR.
+      contents: write # required to push the generated update branch.
+      pull-requests: write # required to create or update the review pr.
     steps:
-      - name: Check out source
+      - name: check out source
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
           persist-credentials: false
-      - name: Set up project tools
+      - name: set up project tools
         uses: jdx/mise-action@7e36c90d9ab29c415a2384db3006f3ec8a8cc654 # v4.2.4
         with:
           version: 2026.7.13
-      - name: Generate update
+      - name: generate update
         id: update
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -41,7 +41,7 @@ jobs:
               let version = (open upstream/manifest.json).version
               $"version=($version)" | save --append $env.GITHUB_OUTPUT
           }
-      - name: Open review pull request
+      - name: open review pull request
         if: steps.update.outputs.changed == 'true'
         env:
           BASE_BRANCH: ${{ github.event.repository.default_branch }}
