@@ -2,20 +2,21 @@ name: upstream
 
 on:
   schedule:
-    - cron: "17 3 * * *"
-  workflow_dispatch:
+    - cron: "0 3 * * *"
+  workflow_dispatch: {}
 
-permissions:
-  contents: read
+permissions: {}
 
 concurrency:
-  group: upstream
-  cancel-in-progress: false
+  group: ${{ github.workflow }}
 
 jobs:
   update:
     name: update upstream pin
     runs-on: ubuntu-latest
+    env:
+      GH_REPO: ${{ github.repository }}
+      GH_TOKEN: ${{ github.token }}
     permissions:
       contents: write # required to push the generated update branch.
       pull-requests: write # required to create or update the review pr.
@@ -27,60 +28,13 @@ jobs:
       - name: set up project tools
         uses: jdx/mise-action@7e36c90d9ab29c415a2384db3006f3ec8a8cc654 # v4.2.4
         with:
-          version: 2026.7.13
+          cache: false
+          install_args: aqua:nushell/nushell
+
       - name: generate update
-        id: update
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        shell: nu {0}
-        run: |
-          nu scripts/upstream.nu
-          let changed = (git diff --quiet -- upstream | complete).exit_code != 0
-          $"changed=($changed)" | save --append $env.GITHUB_OUTPUT
-          if $changed {
-              let version = (open upstream/manifest.json).version
-              $"version=($version)" | save --append $env.GITHUB_OUTPUT
-          }
+        run: nu .github/upstream.nu
+
       - name: open review pull request
-        if: steps.update.outputs.changed == 'true'
         env:
           BASE_BRANCH: ${{ github.event.repository.default_branch }}
-          GH_REPO: ${{ github.repository }}
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          VERSION: ${{ steps.update.outputs.version }}
-        shell: nu {0}
-        run: |
-          def checked [program: string, arguments: list<string>] {
-              let result = (run-external $program ...$arguments | complete)
-              if $result.exit_code != 0 {
-                  error make { msg: $"($program) failed: ($result.stderr | str trim)" }
-              }
-              $result.stdout | str trim
-          }
-
-          let branch = $"automation/upstream-($env.VERSION)"
-          checked gh ["auth" "setup-git"] | ignore
-          let remote = (checked git ["ls-remote" "--heads" "origin" $"refs/heads/($branch)"])
-          checked git ["config" "user.name" "github-actions[bot]"] | ignore
-          checked git ["config" "user.email" "41898282+github-actions[bot]@users.noreply.github.com"] | ignore
-          checked git ["checkout" "-B" $branch] | ignore
-          checked git ["add" "upstream"] | ignore
-          checked git ["commit" "-m" $"chore: update upstream to ($env.VERSION)"] | ignore
-
-          let destination = $"HEAD:refs/heads/($branch)"
-          if ($remote | is-empty) {
-              checked git ["push" "--set-upstream" "origin" $destination] | ignore
-          } else {
-              let remote_sha = ($remote | split row (char tab) | first)
-              let lease = $"--force-with-lease=refs/heads/($branch):($remote_sha)"
-              checked git ["push" $lease "origin" $destination] | ignore
-          }
-
-          let existing = (checked gh ["pr" "list" "--head" $branch "--state" "open" "--json" "number" "--jq" ".[0].number"])
-          let title = $"chore: update upstream to ($env.VERSION)"
-          let body = "Pins the exact upstream release tag, schema, asset names, sizes, and SHA-256 digests. CI remains blocked until every added or changed setting is explicitly classified."
-          if ($existing | is-empty) {
-              checked gh ["pr" "create" "--base" $env.BASE_BRANCH "--head" $branch "--title" $title "--body" $body] | ignore
-          } else {
-              checked gh ["pr" "edit" $existing "--title" $title "--body" $body] | ignore
-          }
+        run: nu .github/pull-request.nu

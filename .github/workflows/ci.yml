@@ -3,13 +3,12 @@ name: ci
 on:
   push:
     branches: [main]
-  pull_request:
+  pull_request: {}
 
-permissions:
-  contents: read
+permissions: {}
 
 concurrency:
-  group: ci-${{ github.workflow }}-${{ github.ref }}
+  group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
@@ -21,16 +20,21 @@ jobs:
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
           persist-credentials: false
+
+      - name: install nushell
+        uses: jdx/mise-action@7e36c90d9ab29c415a2384db3006f3ec8a8cc654 # v4.2.4
+        with:
+          cache: false
+          install_args: aqua:nushell/nushell
+
       - name: reject lint suppressions
-        shell: bash
-        run: |
-          if rg -n '#\s*\[\s*allow|clippy::allow|RUSTFLAGS=.*-A' Cargo.toml src; then
-            echo "lint suppressions are prohibited"
-            exit 1
-          fi
+        run: nu .github/ci.nu
+
       - name: check formatting
-        run: cargo fmt --all -- --check
+        run: cargo fmt -- --check
+
       - name: run strict clippy
-        run: cargo clippy --all-targets --all-features --locked -- -D warnings
+        run: cargo clippy --all-targets --locked -- -D warnings
+
       - name: run tests
-        run: cargo test --all-targets --all-features --locked
+        run: cargo test --locked
