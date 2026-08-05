@@ -1,7 +1,7 @@
 use std::collections::{BTreeMap, BTreeSet};
 use std::ffi::{OsStr, OsString};
 use std::fs;
-use std::io::{BufReader, BufWriter, Write as _};
+use std::io::{BufRead, BufReader, BufWriter, Write as _};
 use std::path::{Path, PathBuf};
 use std::process::{Child, ChildStdin, ChildStdout, Command, Stdio};
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -73,20 +73,24 @@ fn managed(mut arguments: Args, upstream_path: &Path) -> Result<u8> {
         lsp::read(&mut input)?.ok_or_else(|| error("LSP stdin closed before initialize"))?;
     let mut initialize = Initialize::parse(first)?;
 
-    let prepared = prepare_session(&mut arguments, &mut initialize, upstream_path)?;
+    let PreparedSession {
+        settings,
+        warnings,
+        file,
+    } = prepare_session(&mut arguments, &mut initialize, upstream_path)?;
 
-    let mut process = start_process(upstream_path, &arguments.forwarded)?;
+    let mut process = start_process(upstream_path, &arguments.forwarded, file)?;
     let client_done = Arc::new(AtomicBool::new(false));
     if let Err(source) = process.upstream.send(initialize.message) {
         terminate_process(&mut process);
         return Err(source.into());
     }
-    for warning in prepared.warnings {
+    for warning in warnings {
         let _result = process.client.send(lsp::log(2, warning));
     }
 
     let service_handles = match services::start(
-        &prepared.settings,
+        &settings,
         &initialize.roots,
         &process.upstream,
         &process.client,
@@ -99,12 +103,7 @@ fn managed(mut arguments: Args, upstream_path: &Path) -> Result<u8> {
         }
     };
 
-    let client_reader = start_client_reader(
-        input,
-        &process,
-        prepared.settings.clone(),
-        Arc::clone(&client_done),
-    );
+    let client_reader = start_client_reader(input, &process, settings, Arc::clone(&client_done));
 
     let mut status = None;
     while status.is_none()
@@ -144,8 +143,6 @@ fn managed(mut arguments: Args, upstream_path: &Path) -> Result<u8> {
     if normal_shutdown {
         let _result = process.client_writer.join();
     }
-    drop(prepared.file);
-
     Ok(status.map_or(1, |status| exit_code(status.code())))
 }
 
@@ -238,7 +235,11 @@ fn terminate_process(process: &mut ProcessIo) {
     }
 }
 
-fn start_process(upstream_path: &Path, arguments: &[OsString]) -> Result<ProcessIo> {
+fn start_process(
+    upstream_path: &Path,
+    arguments: &[OsString],
+    session: SessionFile,
+) -> Result<ProcessIo> {
     let mut child = Command::new(upstream_path)
         .args(arguments)
         .stdin(Stdio::piped())
@@ -263,7 +264,8 @@ fn start_process(upstream_path: &Path, arguments: &[OsString]) -> Result<Process
     let (client, client_rx) = mpsc::channel::<Value>();
     let upstream_writer = start_upstream_writer(child_stdin, upstream_rx);
     let client_writer = start_client_writer(client_rx, Arc::clone(&stop));
-    let server_reader = start_server_reader(child_stdout, Arc::clone(&pending), client.clone());
+    let server_reader =
+        start_server_reader(child_stdout, Arc::clone(&pending), client.clone(), session);
     let server_stderr = process::forward_stderr(child_stderr);
     Ok(ProcessIo {
         child,
@@ -311,28 +313,37 @@ fn start_server_reader(
     child_stdout: ChildStdout,
     pending: Arc<Mutex<BTreeSet<String>>>,
     client: mpsc::Sender<Value>,
+    session: SessionFile,
 ) -> thread::JoinHandle<()> {
-    thread::spawn(move || {
-        let mut input = BufReader::new(child_stdout);
-        loop {
-            match lsp::read(&mut input) {
-                Ok(Some(message)) => {
-                    track_configuration_request(&message, &pending);
-                    if client.send(message).is_err() {
-                        return;
-                    }
-                }
-                Ok(None) => return,
-                Err(source) => {
-                    let _result = client.send(lsp::log(
-                        1,
-                        format!("bundled server produced invalid LSP: {source}"),
-                    ));
+    thread::spawn(move || read_server(BufReader::new(child_stdout), &pending, &client, session))
+}
+
+fn read_server<R: BufRead>(
+    mut input: R,
+    pending: &Mutex<BTreeSet<String>>,
+    client: &mpsc::Sender<Value>,
+    session: SessionFile,
+) {
+    let mut session = Some(session);
+    loop {
+        match lsp::read(&mut input) {
+            Ok(Some(message)) => {
+                drop(session.take());
+                track_configuration_request(&message, pending);
+                if client.send(message).is_err() {
                     return;
                 }
             }
+            Ok(None) => return,
+            Err(source) => {
+                let _result = client.send(lsp::log(
+                    1,
+                    format!("bundled server produced invalid LSP: {source}"),
+                ));
+                return;
+            }
         }
-    })
+    }
 }
 
 fn track_configuration_request(message: &Value, pending: &Mutex<BTreeSet<String>>) {
@@ -706,6 +717,8 @@ struct SessionFile {
     path: PathBuf,
 }
 
+const STALE_SESSION_AGE: Duration = Duration::from_secs(10 * 60);
+
 impl SessionFile {
     fn new(cache: &Path, settings: &Value) -> Result<Self> {
         let directory = cache.join("sessions");
@@ -713,9 +726,37 @@ impl SessionFile {
         let nanos = SystemTime::now()
             .duration_since(SystemTime::UNIX_EPOCH)?
             .as_nanos();
+        remove_stale_sessions(&directory, nanos);
         let path = directory.join(format!("{}-{nanos}.json", std::process::id()));
         fs::write(&path, serde_json::to_vec_pretty(settings)?)?;
         Ok(Self { path })
+    }
+}
+
+fn remove_stale_sessions(directory: &Path, now: u128) {
+    let Ok(entries) = fs::read_dir(directory) else {
+        return;
+    };
+    for entry in entries.flatten() {
+        let path = entry.path();
+        if !entry.file_type().is_ok_and(|kind| kind.is_file())
+            || path.extension() != Some(OsStr::new("json"))
+        {
+            continue;
+        }
+        let Some((pid, created)) = path
+            .file_stem()
+            .and_then(OsStr::to_str)
+            .and_then(|stem| stem.split_once('-'))
+        else {
+            continue;
+        };
+        let (Ok(_pid), Ok(created)) = (pid.parse::<u32>(), created.parse::<u128>()) else {
+            continue;
+        };
+        if now.saturating_sub(created) >= STALE_SESSION_AGE.as_nanos() {
+            let _result = fs::remove_file(path);
+        }
     }
 }
 
@@ -735,11 +776,17 @@ fn write_stderr(message: &str) {
 
 #[cfg(test)]
 mod tests {
-    use super::{configured_definitions, take_settings_argument};
+    use super::{
+        STALE_SESSION_AGE, SessionFile, configured_definitions, read_server, remove_stale_sessions,
+        take_settings_argument,
+    };
     use crate::{Result, error};
+    use std::collections::BTreeSet;
     use std::ffi::OsString;
     use std::fs;
+    use std::io::BufReader;
     use std::path::Path;
+    use std::sync::{Mutex, mpsc};
 
     use serde_json::json;
 
@@ -785,6 +832,62 @@ mod tests {
         assert!(warnings.is_empty());
         fs::remove_file(definition)?;
         fs::remove_dir(workspace)?;
+        Ok(())
+    }
+
+    #[test]
+    fn removes_session_file_after_upstream_starts() -> Result<()> {
+        let nanos = std::time::SystemTime::now()
+            .duration_since(std::time::SystemTime::UNIX_EPOCH)?
+            .as_nanos();
+        let workspace = std::env::temp_dir().join(format!(
+            "luau-lsp-roblox-session-test-{}-{nanos}",
+            std::process::id()
+        ));
+        let session = SessionFile::new(&workspace, &json!({ "test": true }))?;
+        let path = session.path.clone();
+        let message = json!({ "jsonrpc": "2.0", "id": 0, "result": {} });
+        let mut framed = Vec::new();
+        crate::lsp::write(&mut framed, &message)?;
+        let (client, received) = mpsc::channel();
+
+        read_server(
+            BufReader::new(framed.as_slice()),
+            &Mutex::new(BTreeSet::new()),
+            &client,
+            session,
+        );
+
+        assert_eq!(received.recv()?, message);
+        assert!(!path.exists());
+        fs::remove_dir_all(workspace)?;
+        Ok(())
+    }
+
+    #[test]
+    fn removes_only_stale_session_files() -> Result<()> {
+        let nanos = std::time::SystemTime::now()
+            .duration_since(std::time::SystemTime::UNIX_EPOCH)?
+            .as_nanos();
+        let directory = std::env::temp_dir().join(format!(
+            "luau-lsp-roblox-stale-test-{}-{nanos}",
+            std::process::id()
+        ));
+        fs::create_dir_all(&directory)?;
+        let now = STALE_SESSION_AGE.as_nanos() + 2;
+        let stale = directory.join("123-1.json");
+        let current = directory.join(format!("456-{now}.json"));
+        let unrelated = directory.join("notes.json");
+        fs::write(&stale, "{}")?;
+        fs::write(&current, "{}")?;
+        fs::write(&unrelated, "{}")?;
+
+        remove_stale_sessions(&directory, now);
+
+        assert!(!stale.exists());
+        assert!(current.exists());
+        assert!(unrelated.exists());
+        fs::remove_dir_all(directory)?;
         Ok(())
     }
 }
