@@ -95,13 +95,7 @@ pub fn prepare(upstream_path: &Path, cache_root: &Path, security: Security) -> R
     fs::create_dir_all(&cache)?;
     let bundled = sibling_resource(upstream_path)?;
 
-    let definition_name = format!("globalTypes.{}.d.luau", security.name());
-    let definitions_url = format!("{}{}.d.luau", manifest.roblox.definitions, security.name());
-    let definitions = ensure(
-        &definitions_url,
-        &cache.join(&definition_name),
-        &bundled.join(&definition_name),
-    )?;
+    let definitions = prepare_definitions_from(&manifest, &cache, &bundled, security)?;
     let documentation = ensure(
         &manifest.roblox.documentation,
         &cache.join("api-docs.json"),
@@ -112,6 +106,29 @@ pub fn prepare(upstream_path: &Path, cache_root: &Path, security: Security) -> R
         definitions,
         documentation,
     })
+}
+
+pub fn prepare_definitions(
+    upstream_path: &Path,
+    cache_root: &Path,
+    security: Security,
+) -> Result<PathBuf> {
+    let manifest = upstream()?;
+    let cache = cache_root.join(&manifest.version);
+    fs::create_dir_all(&cache)?;
+    let bundled = sibling_resource(upstream_path)?;
+    prepare_definitions_from(&manifest, &cache, &bundled, security)
+}
+
+fn prepare_definitions_from(
+    manifest: &Upstream,
+    cache: &Path,
+    bundled: &Path,
+    security: Security,
+) -> Result<PathBuf> {
+    let name = format!("globalTypes.{}.d.luau", security.name());
+    let url = format!("{}{}.d.luau", manifest.roblox.definitions, security.name());
+    ensure(&url, &cache.join(&name), &bundled.join(name))
 }
 
 /// Downloads or refreshes a configured external type resource.

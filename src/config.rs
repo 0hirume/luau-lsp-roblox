@@ -72,7 +72,7 @@ impl Settings {
             ),
             (
                 "luau-lsp.fflags.enableNewSolver".to_owned(),
-                Value::Bool(false),
+                Value::Bool(true),
             ),
             ("luau-lsp.fflags.sync".to_owned(), Value::Bool(true)),
             ("luau-lsp.types.roblox".to_owned(), Value::Bool(true)),
@@ -357,6 +357,7 @@ mod tests {
             Some("PluginSecurity")
         );
         assert!(settings.boolean("luau-lsp.types.roblox", false));
+        assert!(settings.boolean("luau-lsp.fflags.enableNewSolver", false));
         assert!(settings.boolean("luau-lsp.fflags.sync", false));
         assert!(settings.boolean("luau-lsp.sourcemap.enabled", false));
         assert!(settings.boolean("luau-lsp.sourcemap.autogenerate", false));

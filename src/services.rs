@@ -41,6 +41,53 @@ pub fn start(
     Ok(handles)
 }
 
+pub fn analysis_sourcemap(settings: &Settings, paths: &[PathBuf]) -> Result<Option<PathBuf>> {
+    if !settings.boolean("luau-lsp.sourcemap.enabled", true) || paths.is_empty() {
+        return Ok(None);
+    }
+
+    let options = Sourcemap::from_settings(settings);
+    let current = std::env::current_dir()?;
+    let mut selected: Option<AnalysisSourcemap> = None;
+    let mut missing = false;
+    for path in paths {
+        let Some(target) = find_analysis_sourcemap(&current, path, &options) else {
+            missing = true;
+            continue;
+        };
+        if selected
+            .as_ref()
+            .is_some_and(|candidate| candidate.path != target.path)
+        {
+            return Err(error(
+                "analyzed paths resolve to multiple Rojo workspaces; pass --sourcemap explicitly",
+            ));
+        }
+        selected.get_or_insert(target);
+    }
+
+    let Some(target) = selected else {
+        return Ok(None);
+    };
+    if missing {
+        return Err(error(
+            "some analyzed paths are outside the discovered Rojo workspace; pass --sourcemap explicitly",
+        ));
+    }
+    if options.autogenerate
+        && let Some(project) = &target.project
+    {
+        generate_analysis_sourcemap(&options, &target.root, project)?;
+        if !target.path.is_file() {
+            return Err(error(format!(
+                "sourcemap generator completed without creating {}",
+                target.path.display()
+            )));
+        }
+    }
+    Ok(target.path.is_file().then_some(target.path))
+}
+
 fn start_sourcemaps(
     settings: &Settings,
     roots: &[PathBuf],
@@ -101,6 +148,13 @@ struct Sourcemap {
     include_non_scripts: bool,
     generator: Option<String>,
     wrapper_watcher: bool,
+}
+
+#[derive(Debug)]
+struct AnalysisSourcemap {
+    root: PathBuf,
+    path: PathBuf,
+    project: Option<PathBuf>,
 }
 
 impl Sourcemap {
@@ -186,6 +240,59 @@ fn generator_command(options: &Sourcemap, root: &Path, project: &Path, watch: bo
         command.push("--watch".to_owned());
     }
     command
+}
+
+fn find_analysis_sourcemap(
+    current: &Path,
+    input: &Path,
+    options: &Sourcemap,
+) -> Option<AnalysisSourcemap> {
+    let input = if input.is_absolute() {
+        input.to_path_buf()
+    } else {
+        current.join(input)
+    };
+    let start = if input.is_dir() {
+        input
+    } else {
+        input.parent()?.to_path_buf()
+    };
+    for root in start.ancestors() {
+        let path = resolve(root, &options.file);
+        let project = find_project(root, &options.project);
+        if path.is_file() || project.is_some() {
+            return Some(AnalysisSourcemap {
+                root: root.to_path_buf(),
+                path,
+                project,
+            });
+        }
+    }
+    None
+}
+
+fn generate_analysis_sourcemap(options: &Sourcemap, root: &Path, project: &Path) -> Result<()> {
+    let command = generator_command(options, root, project, false);
+    let program = command
+        .first()
+        .ok_or_else(|| error("sourcemap generator command is empty"))?;
+    let mut child = Guard::spawn(&command, root).map_err(|source| {
+        error(format!(
+            "failed to start sourcemap generator {program:?}: {source}"
+        ))
+    })?;
+    loop {
+        if child.try_wait()?.is_some() {
+            let status = child.wait()?;
+            if status.success() {
+                return Ok(());
+            }
+            return Err(error(format!(
+                "sourcemap generator {program:?} exited with {status}"
+            )));
+        }
+        thread::sleep(Duration::from_millis(25));
+    }
 }
 
 fn run_generator(
@@ -626,8 +733,26 @@ fn sleep(stop: &AtomicBool, duration: Duration) {
 
 #[cfg(test)]
 mod tests {
-    use super::{parse_size, split_command};
+    use std::fs;
+    use std::path::PathBuf;
+
+    use serde_json::Value;
+
+    use super::{analysis_sourcemap, parse_size, split_command};
     use crate::Result;
+    use crate::config::Settings;
+
+    fn workspace(name: &str) -> Result<PathBuf> {
+        let nanos = std::time::SystemTime::now()
+            .duration_since(std::time::SystemTime::UNIX_EPOCH)?
+            .as_nanos();
+        let path = std::env::temp_dir().join(format!(
+            "luau-lsp-roblox-sourcemap-{name}-{}-{nanos}",
+            std::process::id()
+        ));
+        fs::create_dir_all(&path)?;
+        Ok(path)
+    }
 
     #[test]
     fn parses_generator_commands_without_a_shell() {
@@ -642,6 +767,52 @@ mod tests {
         assert_eq!(parse_size("3mb")?, 3_000_000);
         assert_eq!(parse_size("4 MiB")?, 4 * 1024 * 1024);
         assert!(parse_size("one megabyte").is_err());
+        Ok(())
+    }
+
+    #[test]
+    fn analysis_finds_the_nearest_sourcemap() -> Result<()> {
+        let root = workspace("nearest")?;
+        let place = root.join("places/earth");
+        let source = place.join("src/shared/rig.luau");
+        fs::create_dir_all(source.parent().ok_or("source has no parent")?)?;
+        fs::write(&source, "return {}")?;
+        fs::write(place.join("sourcemap.json"), "{}")?;
+
+        let path = analysis_sourcemap(&Settings::defaults(), &[source])?
+            .ok_or("sourcemap was not discovered")?;
+
+        assert_eq!(path, place.join("sourcemap.json"));
+        fs::remove_dir_all(root)?;
+        Ok(())
+    }
+
+    #[test]
+    fn analysis_rejects_multiple_sourcemap_roots() -> Result<()> {
+        let root = workspace("multiple")?;
+        let mut sources = Vec::new();
+        for name in ["earth", "moon"] {
+            let place = root.join(name);
+            let source = place.join("src/main.luau");
+            fs::create_dir_all(source.parent().ok_or("source has no parent")?)?;
+            fs::write(&source, "return {}")?;
+            fs::write(place.join("sourcemap.json"), "{}")?;
+            sources.push(source);
+        }
+
+        let result = analysis_sourcemap(&Settings::defaults(), &sources);
+
+        assert!(result.is_err());
+        fs::remove_dir_all(root)?;
+        Ok(())
+    }
+
+    #[test]
+    fn disabled_analysis_sourcemaps_need_no_workspace() -> Result<()> {
+        let mut settings = Settings::defaults();
+        settings.set("luau-lsp.sourcemap.enabled", Value::Bool(false));
+
+        assert!(analysis_sourcemap(&settings, &[PathBuf::from("missing.luau")])?.is_none());
         Ok(())
     }
 }

@@ -123,6 +123,34 @@ struct LspCli {
     forwarded: Vec<OsString>,
 }
 
+#[derive(Debug, Parser)]
+#[command(
+    name = "luau-lsp analyze",
+    about = "Analyze Luau with a managed Roblox environment",
+    disable_help_flag = true,
+    disable_version_flag = true,
+    after_help = "Roblox definitions, PluginSecurity, FFlag synchronization, and Rojo sourcemaps are enabled by default. All unrecognized arguments are forwarded to the bundled upstream analyze command."
+)]
+struct AnalyzeCli {
+    #[command(flatten)]
+    wrapper: WrapperOptions,
+
+    /// Select managed Roblox mode or transparent standard mode.
+    #[arg(long, value_enum, default_value = "roblox")]
+    platform: Platform,
+
+    /// Arguments forwarded to the bundled upstream analyze command.
+    #[arg(value_name = "UPSTREAM_ARGUMENT")]
+    forwarded: Vec<OsString>,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum Mode {
+    Lsp,
+    Analyze,
+    Other,
+}
+
 #[derive(Debug)]
 pub struct Args {
     pub(crate) forwarded: Vec<OsString>,
@@ -133,7 +161,7 @@ pub struct Args {
     pub(crate) settings: Option<PathBuf>,
     pub(crate) cache: Option<PathBuf>,
     pub(crate) upstream: Option<PathBuf>,
-    pub(crate) lsp: bool,
+    pub(crate) mode: Mode,
     pub(crate) help: bool,
     pub(crate) version: bool,
 }
@@ -145,41 +173,68 @@ impl Args {
 
     fn parse_from(arguments: impl IntoIterator<Item = OsString>) -> Result<Self> {
         let input: Vec<OsString> = arguments.into_iter().collect();
-        let lsp = input
-            .first()
-            .is_some_and(|argument| argument == OsStr::new("lsp"));
-        if lsp {
-            let command = LspCli::command();
-            let (wrapper, forwarded) = route_arguments(input.into_iter().skip(1), &command);
-            let parsed = LspCli::try_parse_from(
-                std::iter::once(OsString::from("luau-lsp lsp"))
-                    .chain(wrapper)
-                    .chain(std::iter::once(OsString::from("--")))
-                    .chain(forwarded),
-            )?;
-            Ok(Self::from_options(
-                parsed.wrapper,
-                std::iter::once(OsString::from("lsp"))
+        let mode = match input.first().and_then(|argument| argument.to_str()) {
+            Some("lsp") => Mode::Lsp,
+            Some("analyze") => Mode::Analyze,
+            _ => Mode::Other,
+        };
+        match mode {
+            Mode::Lsp => {
+                let command = LspCli::command();
+                let (wrapper, forwarded) = route_arguments(input.into_iter().skip(1), &command);
+                let parsed = LspCli::try_parse_from(
+                    std::iter::once(OsString::from("luau-lsp lsp"))
+                        .chain(wrapper)
+                        .chain(std::iter::once(OsString::from("--")))
+                        .chain(forwarded),
+                )?;
+                Ok(Self::from_options(
+                    parsed.wrapper,
+                    std::iter::once(OsString::from("lsp"))
+                        .chain(parsed.forwarded)
+                        .collect(),
+                    parsed.platform,
+                    mode,
+                ))
+            }
+            Mode::Analyze => {
+                let command = AnalyzeCli::command();
+                let (wrapper, forwarded) = route_arguments(input.into_iter().skip(1), &command);
+                let parsed = AnalyzeCli::try_parse_from(
+                    std::iter::once(OsString::from("luau-lsp analyze"))
+                        .chain(wrapper)
+                        .chain(std::iter::once(OsString::from("--")))
+                        .chain(forwarded),
+                )?;
+                let mut forwarded = std::iter::once(OsString::from("analyze"))
                     .chain(parsed.forwarded)
-                    .collect(),
-                parsed.platform,
-                true,
-            ))
-        } else {
-            let command = TransparentCli::command();
-            let (wrapper, forwarded) = route_arguments(input, &command);
-            let parsed = TransparentCli::try_parse_from(
-                std::iter::once(OsString::from("luau-lsp"))
-                    .chain(wrapper)
-                    .chain(std::iter::once(OsString::from("--")))
-                    .chain(forwarded),
-            )?;
-            Ok(Self::from_options(
-                parsed.wrapper,
-                parsed.forwarded,
-                Platform::Roblox,
-                false,
-            ))
+                    .collect::<Vec<_>>();
+                if parsed.platform == Platform::Standard {
+                    forwarded.insert(1, OsString::from("--platform=standard"));
+                }
+                Ok(Self::from_options(
+                    parsed.wrapper,
+                    forwarded,
+                    parsed.platform,
+                    mode,
+                ))
+            }
+            Mode::Other => {
+                let command = TransparentCli::command();
+                let (wrapper, forwarded) = route_arguments(input, &command);
+                let parsed = TransparentCli::try_parse_from(
+                    std::iter::once(OsString::from("luau-lsp"))
+                        .chain(wrapper)
+                        .chain(std::iter::once(OsString::from("--")))
+                        .chain(forwarded),
+                )?;
+                Ok(Self::from_options(
+                    parsed.wrapper,
+                    parsed.forwarded,
+                    Platform::Roblox,
+                    mode,
+                ))
+            }
         }
     }
 
@@ -187,7 +242,7 @@ impl Args {
         options: WrapperOptions,
         forwarded: Vec<OsString>,
         platform: Platform,
-        lsp: bool,
+        mode: Mode,
     ) -> Self {
         let sync = option_pair(options.sync.sync, options.sync.no_sync);
         let studio = option_pair(options.studio.studio, options.studio.no_studio);
@@ -200,23 +255,23 @@ impl Args {
             settings: options.settings,
             cache: options.cache,
             upstream: options.upstream,
-            lsp,
+            mode,
             help: options.control.help,
             version: options.control.version,
         }
     }
 
     pub(crate) fn help_text(&self) -> String {
-        let mut command = if self.lsp {
-            LspCli::command()
-        } else {
-            TransparentCli::command()
+        let mut command = match self.mode {
+            Mode::Lsp => LspCli::command(),
+            Mode::Analyze => AnalyzeCli::command(),
+            Mode::Other => TransparentCli::command(),
         };
         command.render_long_help().to_string()
     }
 
     pub(crate) fn managed(&self) -> bool {
-        self.lsp && self.platform == Platform::Roblox
+        self.mode != Mode::Other && self.platform == Platform::Roblox
     }
 
     pub(crate) fn upstream_path(&self) -> Result<PathBuf> {
@@ -348,7 +403,7 @@ pub fn sibling_resource(path: &Path) -> Result<PathBuf> {
 
 #[cfg(test)]
 mod tests {
-    use super::{Args, Platform};
+    use super::{Args, Mode, Platform};
     use crate::Result;
     use std::ffi::OsString;
 
@@ -380,19 +435,34 @@ mod tests {
     }
 
     #[test]
-    fn platform_remains_upstream_owned_outside_lsp() -> Result<()> {
+    fn standard_analysis_remains_transparent() -> Result<()> {
         let arguments = parse(&["analyze", "--platform", "roblox", "main.luau"])?;
 
+        assert!(arguments.managed());
+        assert_eq!(arguments.mode, Mode::Analyze);
+        assert_eq!(
+            arguments.forwarded,
+            [OsString::from("analyze"), OsString::from("main.luau")]
+        );
+        let arguments = parse(&["analyze", "--platform", "standard", "main.luau"])?;
         assert!(!arguments.managed());
-        assert_eq!(arguments.forwarded.len(), 4);
+        assert_eq!(
+            arguments.forwarded,
+            [
+                OsString::from("analyze"),
+                OsString::from("--platform=standard"),
+                OsString::from("main.luau")
+            ]
+        );
         Ok(())
     }
 
     #[test]
-    fn a_source_named_lsp_does_not_enable_managed_mode() -> Result<()> {
+    fn source_names_do_not_change_analysis_mode() -> Result<()> {
         let arguments = parse(&["analyze", "lsp"])?;
 
-        assert!(!arguments.managed());
+        assert!(arguments.managed());
+        assert_eq!(arguments.mode, Mode::Analyze);
         assert_eq!(arguments.forwarded.len(), 2);
         Ok(())
     }

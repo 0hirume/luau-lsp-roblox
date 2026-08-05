@@ -15,7 +15,9 @@ For Roblox language-server sessions the wrapper:
 - hosts the existing Studio companion protocol on loopback; and
 - forwards every LSP message it does not need to adapt.
 
-Other upstream modes are launched unchanged.
+The `analyze` command uses the same managed Roblox definitions and FFlags. It
+also finds the nearest Rojo project for the requested files and generates a
+current sourcemap before analysis. Other upstream modes are launched unchanged.
 
 ## Install
 
@@ -35,10 +37,24 @@ Download the archive for your operating system and architecture from the
 then extract its contents into a directory on `PATH`.
 
 Managed Roblox mode, `PluginSecurity`, Roblox definitions and documentation,
-dynamic FFlag synchronization, and automatic Rojo sourcemaps are enabled by
-default. Use `--platform standard` for an unmanaged, transparent upstream
-session. The Studio companion bridge is optional and can be enabled with
-`--studio`.
+Solver V2, dynamic FFlag synchronization, and automatic Rojo sourcemaps are
+enabled by default. Use `--platform standard` for an unmanaged, transparent
+upstream command. The Studio companion bridge is optional and can be enabled
+with `--studio`.
+
+## Analyze
+
+Run analysis from the project root without manually locating cached definitions
+or a sourcemap:
+
+```text
+luau-lsp analyze places/earth/src/shared/rig.luau
+```
+
+The wrapper supplies `LuauSolverV2`, the selected Roblox security definitions,
+and a one-shot Rojo sourcemap automatically. Explicit upstream `--flag`,
+`--definitions`, `--settings`, and `--sourcemap` options still take precedence.
+Files from multiple Rojo roots require an explicit `--sourcemap`.
 
 ## Wrapper options
 
@@ -69,15 +85,17 @@ silently ignored.
 
 ## Sourcemaps and Studio
 
-The Rojo executable remains an external dependency. By default the wrapper finds
-`default.project.json`, runs:
+The Rojo executable remains an external dependency. For an LSP session the
+wrapper finds `default.project.json`, runs:
 
 ```text
 rojo sourcemap default.project.json --output sourcemap.json --include-non-scripts --watch
 ```
 
-and independently observes `sourcemap.json`. Custom paths and generator commands
-use the settings classified in [`upstream/compatibility.json`](upstream/compatibility.json).
+and independently observes `sourcemap.json`. `analyze` discovers the nearest
+project from its input paths and runs the same command once without `--watch`.
+Custom paths and generator commands use the settings classified in
+[`upstream/compatibility.json`](upstream/compatibility.json).
 
 The Studio bridge binds only to `127.0.0.1`. It preserves `/full`, `/clear`, and
 `/get-file-paths` from the upstream VS Code adapter and stops with the LSP session.

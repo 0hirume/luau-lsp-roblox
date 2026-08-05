@@ -11,7 +11,7 @@ use std::time::{Duration, Instant, SystemTime};
 
 use serde_json::Value;
 
-use crate::args::Args;
+use crate::args::{Args, Mode};
 use crate::assets::{self, Security};
 use crate::config::{Settings, normalize_change, normalize_response};
 use crate::lsp::{self, Initialize};
@@ -50,7 +50,11 @@ pub fn run() -> Result<u8> {
 
     let upstream = arguments.upstream_path()?;
     if arguments.managed() {
-        managed(arguments, &upstream)
+        match arguments.mode {
+            Mode::Lsp => managed_lsp(arguments, &upstream),
+            Mode::Analyze => managed_analyze(arguments, &upstream),
+            Mode::Other => transparent(&arguments.forwarded, &upstream),
+        }
     } else {
         transparent(&arguments.forwarded, &upstream)
     }
@@ -66,7 +70,17 @@ fn transparent(arguments: &[OsString], upstream: &Path) -> Result<u8> {
     Ok(exit_code(status.code()))
 }
 
-fn managed(mut arguments: Args, upstream_path: &Path) -> Result<u8> {
+fn managed_analyze(mut arguments: Args, upstream_path: &Path) -> Result<u8> {
+    let (warnings, file) = prepare_analysis(&mut arguments, upstream_path)?;
+    for warning in warnings {
+        write_stderr(&format!("warning: {warning}"));
+    }
+    let result = transparent(&arguments.forwarded, upstream_path);
+    drop(file);
+    result
+}
+
+fn managed_lsp(mut arguments: Args, upstream_path: &Path) -> Result<u8> {
     reject_pipe(&arguments.forwarded)?;
     let mut input = BufReader::new(std::io::stdin());
     let first =
@@ -362,35 +376,79 @@ struct PreparedSession {
     file: SessionFile,
 }
 
+fn prepare_analysis(
+    arguments: &mut Args,
+    upstream_path: &Path,
+) -> Result<(Vec<String>, SessionFile)> {
+    let mut settings = configured_settings(arguments, None)?;
+    let cache = arguments.cache_path()?;
+    fs::create_dir_all(&cache)?;
+    let current = std::env::current_dir()?;
+    let mut managed = Vec::new();
+    let mut warnings = adapt_definition_files(&mut managed, &mut settings, &cache, Some(&current));
+
+    if settings.boolean("luau-lsp.types.roblox", true)
+        && !has_roblox_definition(&arguments.forwarded)
+        && !has_roblox_definition(&managed)
+    {
+        let security = Security::parse(
+            settings
+                .string("luau-lsp.types.robloxSecurityLevel")
+                .unwrap_or("PluginSecurity"),
+        )?;
+        let definitions = assets::prepare_definitions(upstream_path, &cache, security)?;
+        managed.push(OsString::from(format!(
+            "--definitions=@roblox={}",
+            definitions.display()
+        )));
+    }
+
+    let cli_flags = assets::take_cli_flags(&mut arguments.forwarded)?;
+    let flags = assets::resolve_flags(upstream_path, &settings, None, cli_flags)?;
+    managed.extend(
+        flags
+            .values
+            .iter()
+            .map(|(name, value)| OsString::from(format!("--flag:{name}={value}"))),
+    );
+    managed.push(OsString::from("--platform=roblox"));
+    if !settings.boolean("luau-lsp.fflags.enableByDefault", false)
+        && !has_option(&arguments.forwarded, "--no-flags-enabled")
+    {
+        managed.push(OsString::from("--no-flags-enabled"));
+    }
+    if let Some(path) = settings.string("luau-lsp.server.baseLuaurc")
+        && !has_option(&arguments.forwarded, "--base-luaurc")
+    {
+        managed.push(OsString::from(format!("--base-luaurc={path}")));
+    }
+
+    if !has_option(&arguments.forwarded, "--sourcemap")
+        && let Some(path) =
+            services::analysis_sourcemap(&settings, &analyze_paths(&arguments.forwarded))?
+    {
+        managed.push(OsString::from(format!("--sourcemap={}", path.display())));
+    }
+
+    warnings.extend(settings.notices()?);
+    warnings.extend(flags.warnings);
+    settings.set("luau-lsp.fflags.enableByDefault", Value::Bool(true));
+    settings.set("luau-lsp.fflags.sync", Value::Bool(false));
+    let file = SessionFile::new(&cache, &settings.dotted())?;
+    managed.push(OsString::from(format!(
+        "--settings={}",
+        file.path.display()
+    )));
+    arguments.forwarded.splice(1..1, managed);
+    Ok((warnings, file))
+}
+
 fn prepare_session(
     arguments: &mut Args,
     initialize: &mut Initialize,
     upstream_path: &Path,
 ) -> Result<PreparedSession> {
-    let mut settings = Settings::defaults();
-    if let Some(path) = take_settings_argument(&mut arguments.forwarded)? {
-        settings.merge(Settings::from_path(&path)?);
-    }
-    if let Some(path) = &arguments.settings {
-        settings.merge(Settings::from_path(path)?);
-    }
-    if let Some(value) = &initialize.settings {
-        settings.merge(Settings::from_value(value)?);
-    }
-    settings.set("luau-lsp.platform.type", Value::String("roblox".to_owned()));
-    if let Some(security) = &arguments.security {
-        settings.set(
-            "luau-lsp.types.robloxSecurityLevel",
-            Value::String(security.clone()),
-        );
-    }
-    if let Some(sync) = arguments.sync {
-        settings.set("luau-lsp.fflags.sync", Value::Bool(sync));
-    }
-    if let Some(studio) = arguments.studio {
-        settings.set("luau-lsp.studioPlugin.enabled", Value::Bool(studio));
-    }
-
+    let mut settings = configured_settings(arguments, initialize.settings.as_ref())?;
     let cache = arguments.cache_path()?;
     fs::create_dir_all(&cache)?;
     let resources = if settings.boolean("luau-lsp.types.roblox", true) {
@@ -440,6 +498,33 @@ fn prepare_session(
     })
 }
 
+fn configured_settings(arguments: &mut Args, initialization: Option<&Value>) -> Result<Settings> {
+    let mut settings = Settings::defaults();
+    if let Some(path) = take_settings_argument(&mut arguments.forwarded)? {
+        settings.merge(Settings::from_path(&path)?);
+    }
+    if let Some(path) = &arguments.settings {
+        settings.merge(Settings::from_path(path)?);
+    }
+    if let Some(value) = initialization {
+        settings.merge(Settings::from_value(value)?);
+    }
+    settings.set("luau-lsp.platform.type", Value::String("roblox".to_owned()));
+    if let Some(security) = &arguments.security {
+        settings.set(
+            "luau-lsp.types.robloxSecurityLevel",
+            Value::String(security.clone()),
+        );
+    }
+    if let Some(sync) = arguments.sync {
+        settings.set("luau-lsp.fflags.sync", Value::Bool(sync));
+    }
+    if let Some(studio) = arguments.studio {
+        settings.set("luau-lsp.studioPlugin.enabled", Value::Bool(studio));
+    }
+    Ok(settings)
+}
+
 fn adapt_type_files(
     arguments: &mut Vec<OsString>,
     settings: &mut Settings,
@@ -447,6 +532,17 @@ fn adapt_type_files(
     roots: &[PathBuf],
 ) -> Vec<String> {
     let root = roots.first().map(PathBuf::as_path);
+    let mut warnings = adapt_definition_files(arguments, settings, cache, root);
+    warnings.extend(adapt_documentation_files(arguments, settings, cache, root));
+    warnings
+}
+
+fn adapt_definition_files(
+    arguments: &mut Vec<OsString>,
+    settings: &mut Settings,
+    cache: &Path,
+    root: Option<&Path>,
+) -> Vec<String> {
     let mut warnings = Vec::new();
     if let Some(value) = settings.get("luau-lsp.types.definitionFiles").cloned() {
         let definitions = configured_definitions(&value, cache, root, &mut warnings);
@@ -463,6 +559,16 @@ fn adapt_type_files(
             ),
         );
     }
+    warnings
+}
+
+fn adapt_documentation_files(
+    arguments: &mut Vec<OsString>,
+    settings: &mut Settings,
+    cache: &Path,
+    root: Option<&Path>,
+) -> Vec<String> {
+    let mut warnings = Vec::new();
     if let Some(value) = settings.get("luau-lsp.types.documentationFiles").cloned() {
         let documentation = configured_documentation(&value, cache, root, &mut warnings);
         for path in &documentation {
@@ -691,6 +797,52 @@ fn take_settings_argument(arguments: &mut Vec<OsString>) -> Result<Option<PathBu
     Ok(settings)
 }
 
+const ANALYZE_VALUE_OPTIONS: [&str; 9] = [
+    "--flag",
+    "--formatter",
+    "--sourcemap",
+    "--definitions",
+    "--defs",
+    "--ignore",
+    "--base-luaurc",
+    "--platform",
+    "--settings",
+];
+
+fn analyze_paths(arguments: &[OsString]) -> Vec<PathBuf> {
+    let mut index = 1;
+    while let Some(argument) = arguments.get(index) {
+        if argument == OsStr::new("--") {
+            return arguments[index + 1..].iter().map(PathBuf::from).collect();
+        }
+        let Some(value) = argument.to_str() else {
+            return arguments[index..].iter().map(PathBuf::from).collect();
+        };
+        if !value.starts_with('-') {
+            return arguments[index..].iter().map(PathBuf::from).collect();
+        }
+        let (name, inline) = value
+            .split_once([':', '='])
+            .map_or((value, false), |(name, _value)| (name, true));
+        index += usize::from(
+            !inline && ANALYZE_VALUE_OPTIONS.contains(&name) && arguments.get(index + 1).is_some(),
+        ) + 1;
+    }
+    Vec::new()
+}
+
+fn has_option(arguments: &[OsString], name: &str) -> bool {
+    arguments.iter().any(|argument| {
+        if argument == OsStr::new(name) {
+            return true;
+        }
+        argument
+            .to_str()
+            .and_then(|value| value.strip_prefix(name))
+            .is_some_and(|suffix| suffix.starts_with([':', '=']))
+    })
+}
+
 fn reject_pipe(arguments: &[OsString]) -> Result<()> {
     if arguments.iter().any(|argument| {
         argument == OsStr::new("--pipe")
@@ -777,15 +929,15 @@ fn write_stderr(message: &str) {
 #[cfg(test)]
 mod tests {
     use super::{
-        STALE_SESSION_AGE, SessionFile, configured_definitions, read_server, remove_stale_sessions,
-        take_settings_argument,
+        STALE_SESSION_AGE, SessionFile, analyze_paths, configured_definitions, read_server,
+        remove_stale_sessions, take_settings_argument,
     };
     use crate::{Result, error};
     use std::collections::BTreeSet;
     use std::ffi::OsString;
     use std::fs;
     use std::io::BufReader;
-    use std::path::Path;
+    use std::path::{Path, PathBuf};
     use std::sync::{Mutex, mpsc};
 
     use serde_json::json;
@@ -804,6 +956,28 @@ mod tests {
             [OsString::from("lsp"), OsString::from("--stdio")]
         );
         Ok(())
+    }
+
+    #[test]
+    fn extracts_analysis_paths_after_upstream_options() {
+        let arguments = [
+            "analyze",
+            "--formatter",
+            "gnu",
+            "--definitions:@roblox=types.d.luau",
+            "--ignore=vendor/**",
+            "places/earth/src",
+            "places/earth/tests/main.luau",
+        ]
+        .map(OsString::from);
+
+        assert_eq!(
+            analyze_paths(&arguments),
+            [
+                PathBuf::from("places/earth/src"),
+                PathBuf::from("places/earth/tests/main.luau")
+            ]
+        );
     }
 
     #[test]
