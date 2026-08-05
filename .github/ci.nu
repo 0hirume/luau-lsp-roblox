@@ -1,32 +1,38 @@
-def fail [message: string]: nothing -> error {
-    error make {
-        msg: $message
-        label: {
-            text: $message
-            span: (metadata $message).span
-        }
-    }
-}
-
 def main []: nothing -> nothing {
     let pattern = '#\s*\[\s*allow|clippy::allow|RUSTFLAGS=.*-A'
-
-    let result = (
-        run-external
-            rg
-            "-n"
-            $pattern
-            Cargo.toml
-            src
-        | complete
+    let files = [Cargo.toml] | append (glob "src/**/*.rs")
+    let matches = (
+        $files
+        | each {|path|
+            let content = try {
+                open --raw $path
+            } catch {
+                let message = $"reading ($path) failed"
+                error make {
+                    msg: $message
+                    label: {
+                        text: $message
+                        span: (metadata $path).span
+                    }
+                }
+            }
+            $content
+            | lines
+            | enumerate
+            | where item =~ $pattern
+            | each {|line| $"($path):($line.index + 1):($line.item)" }
+        }
+        | flatten
     )
 
-    if $result.exit_code == 0 {
-        print ($result.stdout | str trim)
-        fail "lint suppressions are prohibited"
-    }
-
-    if $result.exit_code != 1 {
-        fail $"searching for lint suppressions failed: ($result.stderr | str trim)"
+    if ($matches | is-not-empty) {
+        print ($matches | str join (char newline))
+        error make {
+            msg: "lint suppressions are prohibited"
+            label: {
+                text: "lint suppressions are prohibited"
+                span: (metadata $pattern).span
+            }
+        }
     }
 }
