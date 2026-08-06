@@ -9,7 +9,7 @@ use std::sync::{Arc, Mutex, mpsc};
 use std::thread;
 use std::time::{Duration, Instant, SystemTime};
 
-use serde_json::Value;
+use serde_json::{Map, Value};
 
 use crate::args::{Args, Mode};
 use crate::assets::{self, Security};
@@ -481,6 +481,7 @@ fn prepare_session(
         &cache,
         resources.as_ref(),
     );
+    sync_definitions(&arguments.forwarded, &mut settings)?;
     let file = SessionFile::new(&cache, &settings.dotted())?;
     arguments.forwarded.push(OsString::from(format!(
         "--settings={}",
@@ -560,6 +561,59 @@ fn adapt_definition_files(
         );
     }
     warnings
+}
+
+fn sync_definitions(arguments: &[OsString], settings: &mut Settings) -> Result<()> {
+    let mut definitions = Map::new();
+    let mut unnamed = 0;
+    let mut index = 0;
+    while let Some(argument) = arguments.get(index) {
+        let inline = argument.to_str().and_then(|value| {
+            value
+                .strip_prefix("--definitions:")
+                .or_else(|| value.strip_prefix("--definitions="))
+        });
+        let definition = if let Some(definition) = inline {
+            Some(definition)
+        } else if argument == OsStr::new("--definitions") {
+            index += 1;
+            Some(
+                arguments
+                    .get(index)
+                    .and_then(|value| value.to_str())
+                    .ok_or_else(|| error("--definitions requires a UTF-8 definition path"))?,
+            )
+        } else {
+            None
+        };
+        if let Some(definition) = definition {
+            let (package, path) = definition.split_once('=').map_or_else(
+                || {
+                    let package = if unnamed == 0 {
+                        "@roblox".to_owned()
+                    } else {
+                        format!("@roblox{unnamed}")
+                    };
+                    unnamed += 1;
+                    (package, definition)
+                },
+                |(package, path)| {
+                    let package = if package.starts_with('@') {
+                        package.to_owned()
+                    } else {
+                        format!("@{package}")
+                    };
+                    (package, path)
+                },
+            );
+            definitions
+                .entry(package)
+                .or_insert_with(|| Value::String(path.to_owned()));
+        }
+        index += 1;
+    }
+    settings.set("luau-lsp.types.definitionFiles", Value::Object(definitions));
+    Ok(())
 }
 
 fn adapt_documentation_files(
@@ -929,8 +983,9 @@ fn write_stderr(message: &str) {
 #[cfg(test)]
 mod tests {
     use super::{
-        STALE_SESSION_AGE, SessionFile, analyze_paths, configured_definitions, read_server,
-        remove_stale_sessions, take_settings_argument,
+        STALE_SESSION_AGE, SessionFile, adapt_startup_arguments, analyze_paths,
+        configured_definitions, read_server, remove_stale_sessions, sync_definitions,
+        take_settings_argument,
     };
     use crate::{Result, error};
     use std::collections::BTreeSet;
@@ -978,6 +1033,60 @@ mod tests {
                 PathBuf::from("places/earth/tests/main.luau")
             ]
         );
+    }
+
+    #[test]
+    fn mirrors_loaded_definitions_into_settings() -> Result<()> {
+        let arguments = [
+            "lsp",
+            "--definitions:@roblox=C:/cache/globalTypes.d.luau",
+            "--definitions",
+            "game=C:/workspace/game.d.luau",
+        ]
+        .map(OsString::from);
+        let mut settings = crate::config::Settings::defaults();
+
+        sync_definitions(&arguments, &mut settings)?;
+
+        assert_eq!(
+            settings.get("luau-lsp.types.definitionFiles"),
+            Some(&json!({
+                "@roblox": "C:/cache/globalTypes.d.luau",
+                "@game": "C:/workspace/game.d.luau"
+            }))
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn managed_definition_uses_the_same_cli_and_settings_path() -> Result<()> {
+        let definition = PathBuf::from("C:/cache/globalTypes.PluginSecurity.d.luau");
+        let resources = crate::assets::Paths {
+            definitions: definition.clone(),
+            documentation: PathBuf::from("C:/cache/api-docs.json"),
+        };
+        let mut arguments = vec![OsString::from("lsp")];
+        let mut settings = crate::config::Settings::defaults();
+
+        adapt_startup_arguments(
+            &mut arguments,
+            &settings,
+            Path::new("C:/cache"),
+            Some(&resources),
+        );
+        sync_definitions(&arguments, &mut settings)?;
+
+        assert!(arguments.contains(&OsString::from(format!(
+            "--definitions:@roblox={}",
+            definition.display()
+        ))));
+        assert_eq!(
+            settings
+                .get("luau-lsp.types.definitionFiles")
+                .and_then(|value| value.get("@roblox")),
+            Some(&json!(definition.to_string_lossy()))
+        );
+        Ok(())
     }
 
     #[test]

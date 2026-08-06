@@ -201,8 +201,10 @@ pub fn normalize_section(value: &Value, baseline: &Settings) -> Result<Value> {
     }
     let mut merged = baseline.clone();
     merged.merge(Settings::from_value(value)?);
-    if let Some(platform) = baseline.get("luau-lsp.platform.type").cloned() {
-        merged.set("luau-lsp.platform.type", platform);
+    for key in ["luau-lsp.platform.type", "luau-lsp.types.definitionFiles"] {
+        if let Some(value) = baseline.get(key).cloned() {
+            merged.set(key, value);
+        }
     }
     Ok(merged.server_object())
 }
@@ -343,6 +345,26 @@ mod tests {
         assert_eq!(
             message.pointer("/result/0/hover/enabled"),
             Some(&json!(false))
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn configuration_cannot_replace_loaded_definitions() -> Result<()> {
+        let mut baseline = Settings::defaults();
+        baseline.set(
+            "luau-lsp.types.definitionFiles",
+            json!({ "@roblox": "C:/cache/globalTypes.d.luau" }),
+        );
+        let mut message = json!({ "jsonrpc": "2.0", "id": 7, "result": [{
+            "types": { "definitionFiles": {} }
+        }] });
+
+        normalize_response(&mut message, &baseline)?;
+
+        assert_eq!(
+            message.pointer("/result/0/types/definitionFiles/@roblox"),
+            Some(&json!("C:/cache/globalTypes.d.luau"))
         );
         Ok(())
     }
