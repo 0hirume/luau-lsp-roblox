@@ -74,7 +74,7 @@ def main []: nothing -> nothing {
             }
             _ => { fail $"unsupported release target: ($target)" }
         }
-        let tag = $env.GITHUB_REF_NAME
+        let tag = $env | get --optional RELEASE_TAG | default $env.GITHUB_REF_NAME
         require ($tag | str starts-with v) $"release tag must start with v: ($tag)"
         let version = $tag | str substring 1..
         let manifest = open upstream/manifest.json

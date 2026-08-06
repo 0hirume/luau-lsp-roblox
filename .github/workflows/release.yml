@@ -1,7 +1,12 @@
 name: release
 
 on:
-  workflow_dispatch: {}
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: release tag to publish
+        required: true
+        type: string
   push:
     tags: ["v*"]
 
@@ -30,6 +35,7 @@ jobs:
     runs-on: ${{ matrix.runner }}
     env:
       CARGO_BUILD_TARGET: ${{ matrix.target }}
+      RELEASE_TAG: ${{ inputs.tag || github.ref_name }}
     steps:
       - name: check out source
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
@@ -71,6 +77,8 @@ jobs:
     name: publish release
     needs: build
     runs-on: ubuntu-latest
+    env:
+      RELEASE_TAG: ${{ inputs.tag || github.ref_name }}
     permissions:
       contents: write # required to create the github release and upload its assets.
     steps:
@@ -84,4 +92,4 @@ jobs:
         env:
           GH_REPO: ${{ github.repository }}
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: gh release create "$GITHUB_REF_NAME" dist/* --generate-notes --verify-tag
+        run: gh release create "$RELEASE_TAG" dist/* --generate-notes --verify-tag
