@@ -739,7 +739,23 @@ fn resolve_type_file(
     if !resolved.is_file() {
         return Err(error(format!("{} is not a file", resolved.display())));
     }
-    Ok(fs::canonicalize(resolved)?)
+    Ok(normalize_definition_path(fs::canonicalize(resolved)?))
+}
+
+fn normalize_definition_path(path: PathBuf) -> PathBuf {
+    #[cfg(windows)]
+    {
+        let Some(path) = path.to_str() else {
+            return path;
+        };
+        if let Some(path) = path.strip_prefix(r"\\?\UNC\") {
+            return PathBuf::from(format!(r"\\{path}"));
+        }
+        if let Some(path) = path.strip_prefix(r"\\?\") {
+            return PathBuf::from(path);
+        }
+    }
+    path
 }
 
 fn expand_home(value: &str) -> PathBuf {
@@ -984,8 +1000,8 @@ fn write_stderr(message: &str) {
 mod tests {
     use super::{
         STALE_SESSION_AGE, SessionFile, adapt_startup_arguments, analyze_paths,
-        configured_definitions, read_server, remove_stale_sessions, sync_definitions,
-        take_settings_argument,
+        configured_definitions, normalize_definition_path, read_server, remove_stale_sessions,
+        sync_definitions, take_settings_argument,
     };
     use crate::{Result, error};
     use std::collections::BTreeSet;
@@ -1111,11 +1127,27 @@ mod tests {
         let actual = resolved
             .get("test")
             .ok_or_else(|| error("test definition was not resolved"))?;
-        assert_eq!(Path::new(actual), fs::canonicalize(&definition)?);
+        assert_eq!(
+            Path::new(actual),
+            normalize_definition_path(fs::canonicalize(&definition)?)
+        );
         assert!(warnings.is_empty());
         fs::remove_file(definition)?;
         fs::remove_dir(workspace)?;
         Ok(())
+    }
+
+    #[cfg(windows)]
+    #[test]
+    fn removes_windows_verbatim_prefix_from_definition_files() {
+        assert_eq!(
+            normalize_definition_path(PathBuf::from(r"\\?\C:\workspace\types.d.luau")),
+            PathBuf::from(r"C:\workspace\types.d.luau")
+        );
+        assert_eq!(
+            normalize_definition_path(PathBuf::from(r"\\?\UNC\server\share\types.d.luau")),
+            PathBuf::from(r"\\server\share\types.d.luau")
+        );
     }
 
     #[test]
