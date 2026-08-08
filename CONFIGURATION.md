@@ -14,59 +14,34 @@ For a Neovim setup, see the [Neovim section](#neovim).
 
 ## Configuration sources
 
-Wrapper settings are used for managed Roblox `lsp` and `analyze` sessions. A
-standard-mode session is transparent: upstream arguments and configuration are
-passed through without the managed Roblox layer.
+Wrapper settings apply to managed Roblox `lsp` and `analyze` sessions. Standard
+mode passes upstream arguments and configuration directly.
 
 The wrapper accepts settings from these sources:
 
-- `--settings <path>` or `--settings=<path>`: an upstream settings file passed
-  as a forwarded argument. `--settings:path` is also accepted.
+- `--settings <path>` or `--settings=<path>`: an upstream settings file. The
+  `--settings:path` form is also accepted.
 - `--wrapper-settings <path>`: a settings file read by the wrapper.
 - LSP `initializationOptions.settings`, or embedded `luau-lsp` and `luau`
   settings in `initializationOptions`.
 - LSP `workspace/didChangeConfiguration` notifications after startup.
 
-Settings files may be a direct object or contain a top-level `settings` object.
-These equivalent forms are accepted:
-
-```json
-{
-  "luau-lsp.sourcemap.enabled": false,
-  "luau-lsp.fflags.override": {
-    "LuauSolverV2": "true"
-  }
-}
-```
-
-```json
-{
-  "luau-lsp": {
-    "sourcemap": {
-      "enabled": false
-    },
-    "fflags": {
-      "override": {
-        "LuauSolverV2": "true"
-      }
-    }
-  }
-}
-```
+Settings files may contain a direct object or a top-level `settings` object.
+Within either, use dotted keys or nested `luau-lsp` objects:
 
 ```json
 {
   "settings": {
-    "sourcemap": {
-      "enabled": false
+    "luau-lsp.sourcemap.enabled": false,
+    "luau-lsp.fflags.override": {
+      "LuauSolverV2": "true"
     }
   }
 }
 ```
 
 The `luau` namespace is accepted for upstream `luau.*` settings such as
-`luau.trace.server`. Keys without a namespace are interpreted as
-`luau-lsp.*` settings.
+`luau.trace.server`. Unqualified keys use the `luau-lsp.*` namespace.
 
 ## Precedence and lifecycle
 
@@ -80,32 +55,31 @@ For a managed session, the effective settings are merged in this order:
    `--sync-fflags` or `--no-sync-fflags`, and `--studio` or `--no-studio`.
 
 Later values replace earlier values for the same setting. Object-valued
-settings such as `fflags.override` are replaced as a setting; they are not
-deep-merged. Explicit upstream arguments such as `--definitions` and
-`--sourcemap` continue to take precedence over automatic managed behavior.
+settings such as `fflags.override` replace the entire object. Explicit upstream
+arguments such as `--definitions` and `--sourcemap` take precedence over
+automatic managed behavior.
 
 Managed mode forces `luau-lsp.platform.type` to `roblox`. The wrapper also
 keeps the definitions it loaded for the session in
-`luau-lsp.types.definitionFiles`, so a later configuration response cannot
-replace those definitions.
+`luau-lsp.types.definitionFiles`; later configuration responses use those
+definitions as the authoritative set.
 
 Configuration changes are normalized into the nested shape expected by the
 upstream server. Partial, unsupported, and unclassified settings produce a log
-notice that the LSP session may need to be restarted. The managed platform and
-loaded definitions remain under wrapper control, and the wrapper does not
-silently rebuild downloaded definitions, FFlags, or other startup resources in
-place.
+notice that the LSP session may need to be restarted. The wrapper controls the
+managed platform and loaded definitions; downloaded definitions, FFlags, and
+other startup resources are initialized per session.
 
 ## Managed defaults
 
 The following values are supplied by the wrapper baseline in managed Roblox
-sessions. The upstream schema defaults apply to the remaining settings.
+sessions. All other settings use the upstream schema defaults.
 
 `luau-lsp.fflags.enableNewSolver` is the only explicit managed baseline value
 that differs from its upstream schema default: managed Roblox mode changes it
 from `false` to `true`. `analyze` writes `fflags.enableByDefault=true` and
 `fflags.sync=false` to its temporary settings file only after resolving FFlags;
-those are internal post-resolution values, not additional user-facing defaults.
+those values describe the post-resolution session state.
 
 | Setting                                | Managed value          | Effect                                                 |
 | -------------------------------------- | ---------------------- | ------------------------------------------------------ |
@@ -125,8 +99,7 @@ those are internal post-resolution values, not additional user-facing defaults.
 
 For `analyze`, the wrapper applies the requested FFlags first and writes a
 temporary upstream settings file with `fflags.enableByDefault=true` and
-`fflags.sync=false`, because those values have already been resolved by the
-wrapper.
+`fflags.sync=false` after resolving those values.
 
 ## Compatibility classes
 
@@ -134,7 +107,7 @@ The registry currently covers all 90 schema settings: 56 are `forwarded`, 26
 are `adapted`, 4 are `partial`, and 4 are `unsupported`.
 
 - **forwarded** — the upstream server owns the behavior and receives the
-  setting unchanged.
+  original setting.
 - **adapted** — the wrapper consumes or translates the setting and may also
   forward a normalized value.
 - **partial** — only the portable part can be reproduced by an editor-neutral
@@ -150,7 +123,7 @@ below include every schema key and its classification.
 | Setting                                  | Type and allowed values              | Upstream default   | Scope    | Compatibility | Description                                                                                                                           |
 | ---------------------------------------- | ------------------------------------ | ------------------ | -------- | ------------- | ------------------------------------------------------------------------------------------------------------------------------------- |
 | `luau.trace.server`                      | string: `off`, `messages`, `verbose` | `off`              | window   | unsupported   | Traces communication between the editor and language server. Use Neovim or editor tracing instead.                                    |
-| `luau-lsp.server.path`                   | string                               | `""`               | —        | unsupported   | Path to the Luau LSP server binary. The distribution owns its bundled server; use `--upstream` for wrapper development.               |
+| `luau-lsp.server.path`                   | string                               | `""`               | —        | unsupported   | Path to the Luau LSP server binary. The distribution owns the bundled server; use `--upstream` for wrapper development.               |
 | `luau-lsp.server.communicationChannel`   | string: `stdio`, `pipe`              | `stdio`            | —        | partial       | Selects the server communication channel. Managed Roblox sessions require stdio; standard sessions can pass pipe arguments through.   |
 | `luau-lsp.server.delayStartup`           | boolean                              | `false`            | —        | adapted       | Keeps the server spinning at startup for debugger attachment.                                                                         |
 | `luau-lsp.server.crashReporting.enabled` | boolean                              | `false`            | —        | adapted       | Uploads crash reports to Sentry when the bundled server supports the required arguments.                                              |
@@ -168,8 +141,8 @@ below include every schema key and its classification.
 | `luau-lsp.sourcemap.rojoProjectFile`   | string                  | `default.project.json` | resource | adapted       | Rojo project file used for sourcemap generation.                                                                    |
 | `luau-lsp.sourcemap.includeNonScripts` | boolean                 | `true`                 | resource | adapted       | Adds Rojo's `--include-non-scripts` option when generating a map.                                                   |
 | `luau-lsp.sourcemap.sourcemapFile`     | string                  | `sourcemap.json`       | resource | adapted       | Generated sourcemap file monitored by the wrapper and read by the server.                                           |
-| `luau-lsp.sourcemap.generatorCommand`  | string                  | —                      | resource | adapted       | Custom generator command. It is split into arguments and launched without a shell.                                  |
-| `luau-lsp.sourcemap.useVSCodeWatcher`  | boolean                 | `false`                | resource | adapted       | Uses the wrapper's workspace poller to rerun the generator instead of delegating watching to the generator process. |
+| `luau-lsp.sourcemap.generatorCommand`  | string                  | —                      | resource | adapted       | Custom generator command, split into arguments and launched as a direct process.                                  |
+| `luau-lsp.sourcemap.useVSCodeWatcher`  | boolean                 | `false`                | resource | adapted       | Uses the wrapper's workspace poller to rerun the generator and disables generator-owned watching.                       |
 
 The default generator command is equivalent to:
 
@@ -177,15 +150,15 @@ The default generator command is equivalent to:
 rojo sourcemap <project-file> --output <sourcemap-file> --include-non-scripts --watch
 ```
 
-When `generatorCommand` is set, the command is used as written and the wrapper
-does not append Rojo-specific arguments. The `rojoPath`, project, output, and
-watcher settings still control automatic discovery and monitoring.
+When `generatorCommand` is set, the wrapper uses the command as written. The
+`rojoPath`, project, output, and watcher settings control automatic discovery
+and monitoring.
 
 ## Formatting, FFlags, and diagnostics
 
 | Setting                                     | Type and allowed values | Upstream default | Scope    | Compatibility | Description                                                                                                 |
 | ------------------------------------------- | ----------------------- | ---------------- | -------- | ------------- | ----------------------------------------------------------------------------------------------------------- |
-| `luau-lsp.format.convertQuotes`             | boolean                 | `false`          | resource | partial       | Converts quote strings to backticks when typing `{`; the private editor cursor command is not portable.     |
+| `luau-lsp.format.convertQuotes`             | boolean                 | `false`          | resource | partial       | Converts quote strings to backticks when typing `{`; cursor placement depends on client support.             |
 | `luau-lsp.fflags.enableByDefault`           | boolean                 | `false`          | window   | adapted       | Enables all boolean Luau FFlags by default before overrides and synchronization.                            |
 | `luau-lsp.fflags.enableNewSolver`           | boolean                 | `false`          | window   | adapted       | Enables the flags required by Luau's new type solver. Managed mode defaults this to `true`.                 |
 | `luau-lsp.fflags.sync`                      | boolean                 | `true`           | window   | adapted       | Synchronizes published Roblox FFlags whose normalized names are supported by the bundled server.            |
@@ -207,13 +180,13 @@ Unsupported or invalid names produce a warning and are ignored.
 | `luau-lsp.types.definitionFiles`     | object of string paths, or wrapper-accepted path array                        | `{}`             | window | adapted       | Maps package names to definition files loaded by the type checker. Relative paths are resolved against the workspace when possible. |
 | `luau-lsp.types.documentationFiles`  | array of strings                                                              | `[]`             | window | adapted       | Paths to documentation files for the configured definition files.                                                                   |
 | `luau-lsp.types.disabledGlobals`     | array of strings                                                              | `[]`             | window | forwarded     | Removes complete globals or individual functions such as `table` or `table.clone`.                                                  |
-| `luau-lsp.types.roblox`              | boolean                                                                       | `true`           | window | adapted       | Deprecated alias retained for automatic Roblox definitions. Prefer `platform.type`.                                                 |
+| `luau-lsp.types.roblox`              | boolean                                                                       | `true`           | window | adapted       | Deprecated alias for automatic Roblox definitions. Prefer `platform.type`.                                                         |
 | `luau-lsp.types.robloxSecurityLevel` | string: `None`, `LocalUserSecurity`, `PluginSecurity`, `RobloxScriptSecurity` | `PluginSecurity` | window | adapted       | Selects the downloaded Roblox API definition set.                                                                                   |
 
 The wrapper adds managed Roblox definitions at the `@roblox` package when they
 are enabled and no explicit Roblox definition was supplied. Definition and
-documentation URLs are cached and refreshed by the wrapper. Explicit upstream
-`--definitions` and `--docs` arguments remain available.
+documentation URLs are cached and refreshed by the wrapper. You can also pass
+explicit upstream `--definitions` and `--docs` arguments.
 
 ## Inlay hints and hover
 
@@ -239,7 +212,7 @@ documentation URLs are cached and refreshed by the wrapper. Explicit upstream
 | ------------------------------------------------------------------------- | -------------------------------------------------- | ------------------ | -------- | ------------- | ------------------------------------------------------------------------------------------------------ |
 | `luau-lsp.completion.enabled`                                             | boolean                                            | `true`             | resource | forwarded     | Enables autocomplete.                                                                                  |
 | `luau-lsp.autocompleteEnd`                                                | boolean                                            | `false`            | resource | partial       | Deprecated alias for `completion.autocompleteEnd`; portable completion edits depend on client support. |
-| `luau-lsp.completion.autocompleteEnd`                                     | boolean                                            | `false`            | resource | partial       | Automatically inserts `end` when opening a block; private editor commands are unavailable.             |
+| `luau-lsp.completion.autocompleteEnd`                                     | boolean                                            | `false`            | resource | partial       | Automatically inserts `end` when opening a block; portable support depends on the client.               |
 | `luau-lsp.completion.addParentheses`                                      | boolean                                            | `true`             | resource | forwarded     | Adds parentheses after completing a function call.                                                     |
 | `luau-lsp.completion.addTabstopAfterParentheses`                          | boolean                                            | `true`             | resource | forwarded     | Adds a tabstop after inserted call parentheses.                                                        |
 | `luau-lsp.completion.fillCallArguments`                                   | boolean                                            | `true`             | resource | forwarded     | Fills parameter names in an autocompleted call. Requires `addParentheses`.                             |
@@ -264,7 +237,7 @@ documentation URLs are cached and refreshed by the wrapper. Explicit upstream
 | `luau-lsp.completion.enableFragmentAutocomplete`                          | boolean                                            | `true`             | resource | forwarded     | Enables fragment autocomplete for performance improvements.                                            |
 | `luau-lsp.signatureHelp.enabled`                                          | boolean                                            | `true`             | resource | forwarded     | Enables signature help.                                                                                |
 
-## Studio companion and legacy plugin settings
+## Studio companion and plugin aliases
 
 | Setting                                        | Type and allowed values | Upstream default | Scope  | Compatibility | Description                                                                                    |
 | ---------------------------------------------- | ----------------------- | ---------------- | ------ | ------------- | ---------------------------------------------------------------------------------------------- |
@@ -276,8 +249,8 @@ documentation URLs are cached and refreshed by the wrapper. Explicit upstream
 | `luau-lsp.plugin.maximumRequestBodySize`       | string size             | `"3mb"`          | window | adapted       | Deprecated alias for `studioPlugin.maximumRequestBodySize`.                                    |
 
 The bridge binds only to `127.0.0.1`. The modern `studioPlugin` values take
-precedence over legacy `plugin` values for port and body size. Either enabled
-setting starts the bridge. The supported requests are `/full`, `/clear`, and
+precedence over `plugin` values for port and body size. Either enabled setting
+starts the bridge. The supported requests are `/full`, `/clear`, and
 `/get-file-paths`.
 
 ## Require aliases, indexing, bytecode, and plugins
@@ -318,21 +291,6 @@ Disable automatic sourcemaps and use a custom Roblox security level:
 }
 ```
 
-Enable the Studio companion and configure the new solver through Neovim or
-another LSP client:
-
-```json
-{
-  "settings": {
-    "luau-lsp.studioPlugin.enabled": true,
-    "luau-lsp.fflags.enableNewSolver": true,
-    "luau-lsp.fflags.override": {
-      "LuauSolverV2": "true"
-    }
-  }
-}
-```
-
 ## Neovim
 
 `luau-lsp-roblox` speaks standard LSP over stdio, so it can be used with
@@ -347,37 +305,16 @@ vim.lsp.config("luau_lsp", {
   cmd = { "luau-lsp", "lsp" },
   filetypes = { "luau" },
   root_markers = { "default.project.json", ".git" },
-  settings = {
-    ["luau-lsp"] = {
-      sourcemap = {
-        enabled = true,
-        autogenerate = true,
-        rojoProjectFile = "default.project.json",
-        sourcemapFile = "sourcemap.json",
-        includeNonScripts = true,
-      },
-      types = {
-        robloxSecurityLevel = "PluginSecurity",
-      },
-      fflags = {
-        enableNewSolver = true,
-      },
-    },
-  },
 })
 
 vim.lsp.enable("luau_lsp")
 ```
 
-Managed Roblox mode is already the default. The wrapper downloads or refreshes
-the Roblox definitions, synchronizes compatible published Roblox Luau FFlags,
-and generates a Rojo sourcemap when the project contains
-`default.project.json`. The explicit settings above show the nesting expected
-by Neovim; they are not required for the defaults.
+Managed Roblox mode is the default. Add settings under
+`settings["luau-lsp"]` when you need to customize that behavior.
 
-Neovim sends its `settings` table through the LSP configuration flow. The
-wrapper accepts the same table as dotted keys, a nested `luau-lsp` object, or a
-section value.
+Neovim sends its `settings` table through the LSP configuration flow. Use the
+shapes described in [Configuration sources](#configuration-sources).
 
 ### Settings variants
 
@@ -403,13 +340,11 @@ vim.lsp.config("luau_lsp", {
 ```
 
 The Studio companion listens only on `127.0.0.1`; its default port is `3667`.
-The equivalent CLI flags are available for one-off overrides, but are not
-needed for normal Neovim configuration.
+Use the equivalent CLI flags for one-off overrides.
 
 ### Standard mode
 
-To use the upstream server without managed Roblox behavior, select standard
-mode in the command:
+For transparent upstream behavior, select standard mode in the command:
 
 ```lua
 vim.lsp.config("luau_lsp_standard", {
@@ -441,8 +376,8 @@ vim.lsp.config("luau_lsp", {
 })
 ```
 
-The file may contain either a direct settings object or a top-level `settings`
-object. For example:
+The file may use any shape described in
+[Configuration sources](#configuration-sources). For example:
 
 ```json
 {
@@ -471,9 +406,8 @@ upstream `--sourcemap` argument in `cmd`.
 
 ## Helix
 
-Helix's language bundle already defines the `luau` language, including its file
-types and project roots. Keep that existing `[[language]]` entry; only define or
-extend the language-server entry when needed:
+Helix's language bundle supplies the `luau` language, including its file types
+and project roots. Configure the language server with:
 
 ```toml
 [language-server.luau]
@@ -482,24 +416,16 @@ args = ["lsp"]
 ```
 
 Helix passes the language-server `config` table as initialization options. The
-wrapper accepts embedded `luau-lsp` settings there, so configure the wrapper
-without adding CLI flags:
+wrapper accepts embedded `luau-lsp` settings there; use this table for wrapper
+configuration:
 
 ```toml
 [language-server.luau.config."luau-lsp".sourcemap]
-enabled = true
-autogenerate = true
 rojoProjectFile = "default.project.json"
-sourcemapFile = "sourcemap.json"
-includeNonScripts = true
 
 [language-server.luau.config."luau-lsp".types]
 definitionFiles = { "@roblox" = "types.d.luau" }
 documentationFiles = ["api-docs.json"]
-robloxSecurityLevel = "PluginSecurity"
-
-[language-server.luau.config."luau-lsp".fflags]
-enableNewSolver = true
 
 [language-server.luau.config."luau-lsp".completion.imports.stringRequires]
 enabled = true
@@ -509,10 +435,10 @@ useConst = true
 ```
 
 If your server uses a different Helix ID, replace `luau` in the table paths;
-the embedded settings namespace remains `luau-lsp`.
+the embedded settings namespace is `luau-lsp`.
 
-Managed Roblox mode is already the default. The settings above are shown for
-shape and can be omitted when the managed defaults are sufficient. For a JSON
-settings file shared with other editors, add `--wrapper-settings` and its path
-to the server's `args` array. See [Configuration sources](#configuration-sources)
-for the accepted file shapes.
+Managed Roblox mode is the default. The managed defaults cover the common case;
+add the settings above when you need to customize them. For a JSON settings file
+shared with other editors, add `--wrapper-settings` and its path to the server's
+`args` array. See [Configuration sources](#configuration-sources) for accepted
+file shapes.
