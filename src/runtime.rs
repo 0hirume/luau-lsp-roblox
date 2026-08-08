@@ -742,8 +742,13 @@ fn resolve_type_file(
     Ok(normalize_definition_path(fs::canonicalize(resolved)?))
 }
 
+#[cfg(not(windows))]
+const fn normalize_definition_path(path: PathBuf) -> PathBuf {
+    path
+}
+
+#[cfg(windows)]
 fn normalize_definition_path(path: PathBuf) -> PathBuf {
-    #[cfg(windows)]
     {
         let Some(path) = path.to_str() else {
             return path;
