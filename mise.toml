@@ -4,3 +4,4 @@
 "github:zizmorcore/zizmor" = "latest"
 "npm:@actions/languageserver" = "latest"
 "aqua:rhysd/actionlint" = "latest"
+"npm:oxfmt" = "latest"
