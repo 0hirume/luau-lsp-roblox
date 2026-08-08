@@ -7,6 +7,9 @@ scopes, and descriptions come from [`upstream/schema.json`](upstream/schema.json
 The compatibility column is maintained in
 [`upstream/compatibility.json`](upstream/compatibility.json).
 
+The setting tables use the upstream schema default. Managed Roblox defaults are
+listed separately below.
+
 For a Neovim setup, see the [Neovim section](#neovim).
 
 ## Configuration sources
@@ -98,6 +101,12 @@ place.
 The following values are supplied by the wrapper baseline in managed Roblox
 sessions. The upstream schema defaults apply to the remaining settings.
 
+`luau-lsp.fflags.enableNewSolver` is the only explicit managed baseline value
+that differs from its upstream schema default: managed Roblox mode changes it
+from `false` to `true`. `analyze` writes `fflags.enableByDefault=true` and
+`fflags.sync=false` to its temporary settings file only after resolving FFlags;
+those are internal post-resolution values, not additional user-facing defaults.
+
 | Setting                                | Managed value          | Effect                                                 |
 | -------------------------------------- | ---------------------- | ------------------------------------------------------ |
 | `luau-lsp.platform.type`               | `roblox`               | Selects managed Roblox behavior.                       |
@@ -138,7 +147,7 @@ below include every schema key and its classification.
 
 ## Server and platform
 
-| Setting                                  | Type and allowed values              | Default            | Scope    | Compatibility | Description                                                                                                                           |
+| Setting                                  | Type and allowed values              | Upstream default   | Scope    | Compatibility | Description                                                                                                                           |
 | ---------------------------------------- | ------------------------------------ | ------------------ | -------- | ------------- | ------------------------------------------------------------------------------------------------------------------------------------- |
 | `luau.trace.server`                      | string: `off`, `messages`, `verbose` | `off`              | window   | unsupported   | Traces communication between the editor and language server. Use Neovim or editor tracing instead.                                    |
 | `luau-lsp.server.path`                   | string                               | `""`               | —        | unsupported   | Path to the Luau LSP server binary. The distribution owns its bundled server; use `--upstream` for wrapper development.               |
@@ -151,7 +160,7 @@ below include every schema key and its classification.
 
 ## Sourcemaps
 
-| Setting                                | Type and allowed values | Default                | Scope    | Compatibility | Description                                                                                                         |
+| Setting                                | Type and allowed values | Upstream default       | Scope    | Compatibility | Description                                                                                                         |
 | -------------------------------------- | ----------------------- | ---------------------- | -------- | ------------- | ------------------------------------------------------------------------------------------------------------------- |
 | `luau-lsp.sourcemap.enabled`           | boolean                 | `true`                 | resource | adapted       | Enables Rojo sourcemap parsing, wrapper monitoring, and automatic generation.                                       |
 | `luau-lsp.sourcemap.autogenerate`      | boolean                 | `true`                 | resource | adapted       | Runs `rojo sourcemap` or the configured generator when the project changes.                                         |
@@ -174,18 +183,18 @@ watcher settings still control automatic discovery and monitoring.
 
 ## Formatting, FFlags, and diagnostics
 
-| Setting                                     | Type and allowed values | Default | Scope    | Compatibility | Description                                                                                                 |
-| ------------------------------------------- | ----------------------- | ------- | -------- | ------------- | ----------------------------------------------------------------------------------------------------------- |
-| `luau-lsp.format.convertQuotes`             | boolean                 | `false` | resource | partial       | Converts quote strings to backticks when typing `{`; the private editor cursor command is not portable.     |
-| `luau-lsp.fflags.enableByDefault`           | boolean                 | `false` | window   | adapted       | Enables all boolean Luau FFlags by default before overrides and synchronization.                            |
-| `luau-lsp.fflags.enableNewSolver`           | boolean                 | `false` | window   | adapted       | Enables the flags required by Luau's new type solver. Managed mode defaults this to `true`.                 |
-| `luau-lsp.fflags.sync`                      | boolean                 | `true`  | window   | adapted       | Synchronizes published Roblox FFlags whose normalized names are supported by the bundled server.            |
-| `luau-lsp.fflags.override`                  | object of string values | `{}`    | window   | adapted       | Overrides FFlags after synchronization. Boolean and number JSON values are converted to strings.            |
-| `luau-lsp.diagnostics.includeDependents`    | boolean                 | `true`  | resource | forwarded     | Recomputes dependent diagnostics when a file changes. Ignored when workspace diagnostics are enabled.       |
-| `luau-lsp.diagnostics.workspace`            | boolean                 | `false` | resource | forwarded     | Computes diagnostics for the whole workspace.                                                               |
-| `luau-lsp.diagnostics.strictDatamodelTypes` | boolean                 | `false` | resource | forwarded     | Uses strict DataModel types for diagnostics instead of treating `game`, `script`, and `workspace` as `any`. |
-| `luau-lsp.diagnostics.pullOnChange`         | boolean                 | `true`  | resource | unsupported   | Requests document diagnostics whenever the text changes. Scheduling belongs to the LSP client.              |
-| `luau-lsp.diagnostics.pullOnSave`           | boolean                 | `true`  | resource | unsupported   | Requests document diagnostics whenever the file is saved. Scheduling belongs to the LSP client.             |
+| Setting                                     | Type and allowed values | Upstream default | Scope    | Compatibility | Description                                                                                                 |
+| ------------------------------------------- | ----------------------- | ---------------- | -------- | ------------- | ----------------------------------------------------------------------------------------------------------- |
+| `luau-lsp.format.convertQuotes`             | boolean                 | `false`          | resource | partial       | Converts quote strings to backticks when typing `{`; the private editor cursor command is not portable.     |
+| `luau-lsp.fflags.enableByDefault`           | boolean                 | `false`          | window   | adapted       | Enables all boolean Luau FFlags by default before overrides and synchronization.                            |
+| `luau-lsp.fflags.enableNewSolver`           | boolean                 | `false`          | window   | adapted       | Enables the flags required by Luau's new type solver. Managed mode defaults this to `true`.                 |
+| `luau-lsp.fflags.sync`                      | boolean                 | `true`           | window   | adapted       | Synchronizes published Roblox FFlags whose normalized names are supported by the bundled server.            |
+| `luau-lsp.fflags.override`                  | object of string values | `{}`             | window   | adapted       | Overrides FFlags after synchronization. Boolean and number JSON values are converted to strings.            |
+| `luau-lsp.diagnostics.includeDependents`    | boolean                 | `true`           | resource | forwarded     | Recomputes dependent diagnostics when a file changes. Ignored when workspace diagnostics are enabled.       |
+| `luau-lsp.diagnostics.workspace`            | boolean                 | `false`          | resource | forwarded     | Computes diagnostics for the whole workspace.                                                               |
+| `luau-lsp.diagnostics.strictDatamodelTypes` | boolean                 | `false`          | resource | forwarded     | Uses strict DataModel types for diagnostics instead of treating `game`, `script`, and `workspace` as `any`. |
+| `luau-lsp.diagnostics.pullOnChange`         | boolean                 | `true`           | resource | unsupported   | Requests document diagnostics whenever the text changes. Scheduling belongs to the LSP client.              |
+| `luau-lsp.diagnostics.pullOnSave`           | boolean                 | `true`           | resource | unsupported   | Requests document diagnostics whenever the file is saved. Scheduling belongs to the LSP client.             |
 
 FFlag names may be written with Roblox prefixes such as `FFlag`; the wrapper
 normalizes them before checking the bundled server's `--show-flags` registry.
@@ -193,7 +202,7 @@ Unsupported or invalid names produce a warning and are ignored.
 
 ## Types and Roblox definitions
 
-| Setting                              | Type and allowed values                                                       | Default          | Scope  | Compatibility | Description                                                                                                                         |
+| Setting                              | Type and allowed values                                                       | Upstream default | Scope  | Compatibility | Description                                                                                                                         |
 | ------------------------------------ | ----------------------------------------------------------------------------- | ---------------- | ------ | ------------- | ----------------------------------------------------------------------------------------------------------------------------------- |
 | `luau-lsp.types.definitionFiles`     | object of string paths, or wrapper-accepted path array                        | `{}`             | window | adapted       | Maps package names to definition files loaded by the type checker. Relative paths are resolved against the workspace when possible. |
 | `luau-lsp.types.documentationFiles`  | array of strings                                                              | `[]`             | window | adapted       | Paths to documentation files for the configured definition files.                                                                   |
@@ -208,25 +217,25 @@ documentation URLs are cached and refreshed by the wrapper. Explicit upstream
 
 ## Inlay hints and hover
 
-| Setting                                                  | Type and allowed values           | Default | Scope    | Compatibility | Description                                                                                |
-| -------------------------------------------------------- | --------------------------------- | ------- | -------- | ------------- | ------------------------------------------------------------------------------------------ |
-| `luau-lsp.inlayHints.parameterNames`                     | string: `none`, `literals`, `all` | `none`  | resource | forwarded     | Shows inlay hints for function parameter names.                                            |
-| `luau-lsp.inlayHints.variableTypes`                      | boolean                           | `false` | resource | forwarded     | Shows inlay hints for variable types.                                                      |
-| `luau-lsp.inlayHints.parameterTypes`                     | boolean                           | `false` | resource | forwarded     | Shows inlay hints for parameter types.                                                     |
-| `luau-lsp.inlayHints.functionReturnTypes`                | boolean                           | `false` | resource | forwarded     | Shows inlay hints for function return types.                                               |
-| `luau-lsp.inlayHints.hideHintsForErrorTypes`             | boolean                           | `false` | resource | forwarded     | Hides type hints that resolve to an error type.                                            |
-| `luau-lsp.inlayHints.hideHintsForMatchingParameterNames` | boolean                           | `true`  | resource | forwarded     | Hides hints when the resolved variable name matches the parameter name.                    |
-| `luau-lsp.inlayHints.typeHintMaxLength`                  | number, minimum `10`              | `50`    | resource | forwarded     | Maximum type-hint length before truncation.                                                |
-| `luau-lsp.inlayHints.makeInsertable`                     | boolean                           | `true`  | resource | forwarded     | Allows type annotation hints to be inserted by clicking when the client supports the edit. |
-| `luau-lsp.hover.enabled`                                 | boolean                           | `true`  | resource | forwarded     | Enables hover.                                                                             |
-| `luau-lsp.hover.showTableKinds`                          | boolean                           | `false` | resource | forwarded     | Shows table kinds in hover content.                                                        |
-| `luau-lsp.hover.multilineFunctionDefinitions`            | boolean                           | `false` | resource | forwarded     | Shows function definitions on multiple lines.                                              |
-| `luau-lsp.hover.strictDatamodelTypes`                    | boolean                           | `true`  | resource | forwarded     | Uses strict DataModel types in hover display.                                              |
-| `luau-lsp.hover.includeStringLength`                     | boolean                           | `true`  | resource | forwarded     | Shows string length when hovering over a string literal.                                   |
+| Setting                                                  | Type and allowed values           | Upstream default | Scope    | Compatibility | Description                                                                                |
+| -------------------------------------------------------- | --------------------------------- | ---------------- | -------- | ------------- | ------------------------------------------------------------------------------------------ |
+| `luau-lsp.inlayHints.parameterNames`                     | string: `none`, `literals`, `all` | `none`           | resource | forwarded     | Shows inlay hints for function parameter names.                                            |
+| `luau-lsp.inlayHints.variableTypes`                      | boolean                           | `false`          | resource | forwarded     | Shows inlay hints for variable types.                                                      |
+| `luau-lsp.inlayHints.parameterTypes`                     | boolean                           | `false`          | resource | forwarded     | Shows inlay hints for parameter types.                                                     |
+| `luau-lsp.inlayHints.functionReturnTypes`                | boolean                           | `false`          | resource | forwarded     | Shows inlay hints for function return types.                                               |
+| `luau-lsp.inlayHints.hideHintsForErrorTypes`             | boolean                           | `false`          | resource | forwarded     | Hides type hints that resolve to an error type.                                            |
+| `luau-lsp.inlayHints.hideHintsForMatchingParameterNames` | boolean                           | `true`           | resource | forwarded     | Hides hints when the resolved variable name matches the parameter name.                    |
+| `luau-lsp.inlayHints.typeHintMaxLength`                  | number, minimum `10`              | `50`             | resource | forwarded     | Maximum type-hint length before truncation.                                                |
+| `luau-lsp.inlayHints.makeInsertable`                     | boolean                           | `true`           | resource | forwarded     | Allows type annotation hints to be inserted by clicking when the client supports the edit. |
+| `luau-lsp.hover.enabled`                                 | boolean                           | `true`           | resource | forwarded     | Enables hover.                                                                             |
+| `luau-lsp.hover.showTableKinds`                          | boolean                           | `false`          | resource | forwarded     | Shows table kinds in hover content.                                                        |
+| `luau-lsp.hover.multilineFunctionDefinitions`            | boolean                           | `false`          | resource | forwarded     | Shows function definitions on multiple lines.                                              |
+| `luau-lsp.hover.strictDatamodelTypes`                    | boolean                           | `true`           | resource | forwarded     | Uses strict DataModel types in hover display.                                              |
+| `luau-lsp.hover.includeStringLength`                     | boolean                           | `true`           | resource | forwarded     | Shows string length when hovering over a string literal.                                   |
 
 ## Completion and signature help
 
-| Setting                                                                   | Type and allowed values                            | Default            | Scope    | Compatibility | Description                                                                                            |
+| Setting                                                                   | Type and allowed values                            | Upstream default   | Scope    | Compatibility | Description                                                                                            |
 | ------------------------------------------------------------------------- | -------------------------------------------------- | ------------------ | -------- | ------------- | ------------------------------------------------------------------------------------------------------ |
 | `luau-lsp.completion.enabled`                                             | boolean                                            | `true`             | resource | forwarded     | Enables autocomplete.                                                                                  |
 | `luau-lsp.autocompleteEnd`                                                | boolean                                            | `false`            | resource | partial       | Deprecated alias for `completion.autocompleteEnd`; portable completion edits depend on client support. |
@@ -257,14 +266,14 @@ documentation URLs are cached and refreshed by the wrapper. Explicit upstream
 
 ## Studio companion and legacy plugin settings
 
-| Setting                                        | Type and allowed values | Default | Scope  | Compatibility | Description                                                                                    |
-| ---------------------------------------------- | ----------------------- | ------- | ------ | ------------- | ---------------------------------------------------------------------------------------------- |
-| `luau-lsp.studioPlugin.enabled`                | boolean                 | `false` | window | adapted       | Enables the wrapper-owned Roblox Studio companion bridge.                                      |
-| `luau-lsp.studioPlugin.port`                   | number                  | `3667`  | window | adapted       | Loopback Studio companion port.                                                                |
-| `luau-lsp.studioPlugin.maximumRequestBodySize` | string size             | `"3mb"` | window | adapted       | Maximum Studio request body. Supports `b`, `kb`, `kib`, `mb`, `mib`, `gb`, and `gib` suffixes. |
-| `luau-lsp.plugin.enabled`                      | boolean                 | `false` | window | adapted       | Deprecated alias for `studioPlugin.enabled`.                                                   |
-| `luau-lsp.plugin.port`                         | number                  | `3667`  | window | adapted       | Deprecated alias for `studioPlugin.port`.                                                      |
-| `luau-lsp.plugin.maximumRequestBodySize`       | string size             | `"3mb"` | window | adapted       | Deprecated alias for `studioPlugin.maximumRequestBodySize`.                                    |
+| Setting                                        | Type and allowed values | Upstream default | Scope  | Compatibility | Description                                                                                    |
+| ---------------------------------------------- | ----------------------- | ---------------- | ------ | ------------- | ---------------------------------------------------------------------------------------------- |
+| `luau-lsp.studioPlugin.enabled`                | boolean                 | `false`          | window | adapted       | Enables the wrapper-owned Roblox Studio companion bridge.                                      |
+| `luau-lsp.studioPlugin.port`                   | number                  | `3667`           | window | adapted       | Loopback Studio companion port.                                                                |
+| `luau-lsp.studioPlugin.maximumRequestBodySize` | string size             | `"3mb"`          | window | adapted       | Maximum Studio request body. Supports `b`, `kb`, `kib`, `mb`, `mib`, `gb`, and `gib` suffixes. |
+| `luau-lsp.plugin.enabled`                      | boolean                 | `false`          | window | adapted       | Deprecated alias for `studioPlugin.enabled`.                                                   |
+| `luau-lsp.plugin.port`                         | number                  | `3667`           | window | adapted       | Deprecated alias for `studioPlugin.port`.                                                      |
+| `luau-lsp.plugin.maximumRequestBodySize`       | string size             | `"3mb"`          | window | adapted       | Deprecated alias for `studioPlugin.maximumRequestBodySize`.                                    |
 
 The bridge binds only to `127.0.0.1`. The modern `studioPlugin` values take
 precedence over legacy `plugin` values for port and body size. Either enabled
@@ -273,22 +282,22 @@ setting starts the bridge. The supported requests are `/full`, `/clear`, and
 
 ## Require aliases, indexing, bytecode, and plugins
 
-| Setting                                                | Type and allowed values | Default     | Scope    | Compatibility | Description                                                                                            |
-| ------------------------------------------------------ | ----------------------- | ----------- | -------- | ------------- | ------------------------------------------------------------------------------------------------------ |
-| `luau-lsp.require.fileAliases`                         | object of string paths  | `{}`        | resource | forwarded     | Deprecated mapping of custom require string aliases to file paths. Prefer aliases in `.luaurc`.        |
-| `luau-lsp.require.directoryAliases`                    | object of string paths  | `{}`        | resource | forwarded     | Deprecated mapping of require string prefixes to directories. Aliases should include trailing slashes. |
-| `luau-lsp.require.useOriginalRequireByStringSemantics` | boolean                 | `false`     | resource | forwarded     | Deprecated switch for old `init.luau` require-by-string resolution.                                    |
-| `luau-lsp.index.enabled`                               | boolean                 | `true`      | window   | forwarded     | Indexes workspace files for features such as Find All References and Rename.                           |
-| `luau-lsp.index.maxFiles`                              | number                  | `10000`     | window   | forwarded     | Maximum number of indexed files. More files require more memory.                                       |
-| `luau-lsp.bytecode.debugLevel`                         | number                  | `1`         | resource | forwarded     | `debugLevel` used for bytecode compilation.                                                            |
-| `luau-lsp.bytecode.typeInfoLevel`                      | number                  | `1`         | resource | forwarded     | `typeInfoLevel` used for bytecode compilation.                                                         |
-| `luau-lsp.bytecode.vectorLib`                          | string                  | `"Vector3"` | resource | forwarded     | `vectorLib` used for bytecode compilation.                                                             |
-| `luau-lsp.bytecode.vectorCtor`                         | string                  | `"new"`     | resource | forwarded     | `vectorCtor` used for bytecode compilation.                                                            |
-| `luau-lsp.bytecode.vectorType`                         | string                  | `"Vector3"` | resource | forwarded     | `vectorType` used for bytecode compilation.                                                            |
-| `luau-lsp.plugins.enabled`                             | boolean                 | `false`     | resource | forwarded     | Enables Luau source transformation plugins before type checking.                                       |
-| `luau-lsp.plugins.paths`                               | array of strings        | `[]`        | resource | forwarded     | Plugin script paths, executed in order.                                                                |
-| `luau-lsp.plugins.timeoutMs`                           | number                  | `5000`      | resource | forwarded     | Plugin execution timeout in milliseconds.                                                              |
-| `luau-lsp.plugins.fileSystem.enabled`                  | boolean                 | `false`     | resource | forwarded     | Allows plugins to read files within the workspace.                                                     |
+| Setting                                                | Type and allowed values | Upstream default | Scope    | Compatibility | Description                                                                                            |
+| ------------------------------------------------------ | ----------------------- | ---------------- | -------- | ------------- | ------------------------------------------------------------------------------------------------------ |
+| `luau-lsp.require.fileAliases`                         | object of string paths  | `{}`             | resource | forwarded     | Deprecated mapping of custom require string aliases to file paths. Prefer aliases in `.luaurc`.        |
+| `luau-lsp.require.directoryAliases`                    | object of string paths  | `{}`             | resource | forwarded     | Deprecated mapping of require string prefixes to directories. Aliases should include trailing slashes. |
+| `luau-lsp.require.useOriginalRequireByStringSemantics` | boolean                 | `false`          | resource | forwarded     | Deprecated switch for old `init.luau` require-by-string resolution.                                    |
+| `luau-lsp.index.enabled`                               | boolean                 | `true`           | window   | forwarded     | Indexes workspace files for features such as Find All References and Rename.                           |
+| `luau-lsp.index.maxFiles`                              | number                  | `10000`          | window   | forwarded     | Maximum number of indexed files. More files require more memory.                                       |
+| `luau-lsp.bytecode.debugLevel`                         | number                  | `1`              | resource | forwarded     | `debugLevel` used for bytecode compilation.                                                            |
+| `luau-lsp.bytecode.typeInfoLevel`                      | number                  | `1`              | resource | forwarded     | `typeInfoLevel` used for bytecode compilation.                                                         |
+| `luau-lsp.bytecode.vectorLib`                          | string                  | `"Vector3"`      | resource | forwarded     | `vectorLib` used for bytecode compilation.                                                             |
+| `luau-lsp.bytecode.vectorCtor`                         | string                  | `"new"`          | resource | forwarded     | `vectorCtor` used for bytecode compilation.                                                            |
+| `luau-lsp.bytecode.vectorType`                         | string                  | `"Vector3"`      | resource | forwarded     | `vectorType` used for bytecode compilation.                                                            |
+| `luau-lsp.plugins.enabled`                             | boolean                 | `false`          | resource | forwarded     | Enables Luau source transformation plugins before type checking.                                       |
+| `luau-lsp.plugins.paths`                               | array of strings        | `[]`             | resource | forwarded     | Plugin script paths, executed in order.                                                                |
+| `luau-lsp.plugins.timeoutMs`                           | number                  | `5000`           | resource | forwarded     | Plugin execution timeout in milliseconds.                                                              |
+| `luau-lsp.plugins.fileSystem.enabled`                  | boolean                 | `false`          | resource | forwarded     | Allows plugins to read files within the workspace.                                                     |
 
 ## Examples
 
@@ -459,3 +468,51 @@ upstream `--sourcemap` argument in `cmd`.
 - If a setting is changed after initialization and the wrapper logs that a
   restart is required, restart the LSP client so startup-owned resources can be
   rebuilt.
+
+## Helix
+
+Helix's language bundle already defines the `luau` language, including its file
+types and project roots. Keep that existing `[[language]]` entry; only define or
+extend the language-server entry when needed:
+
+```toml
+[language-server.luau]
+command = "luau-lsp"
+args = ["lsp"]
+```
+
+Helix passes the language-server `config` table as initialization options. The
+wrapper accepts embedded `luau-lsp` settings there, so configure the wrapper
+without adding CLI flags:
+
+```toml
+[language-server.luau.config."luau-lsp".sourcemap]
+enabled = true
+autogenerate = true
+rojoProjectFile = "default.project.json"
+sourcemapFile = "sourcemap.json"
+includeNonScripts = true
+
+[language-server.luau.config."luau-lsp".types]
+definitionFiles = { "@roblox" = "types.d.luau" }
+documentationFiles = ["api-docs.json"]
+robloxSecurityLevel = "PluginSecurity"
+
+[language-server.luau.config."luau-lsp".fflags]
+enableNewSolver = true
+
+[language-server.luau.config."luau-lsp".completion.imports.stringRequires]
+enabled = true
+
+[language-server.luau.config."luau-lsp".completion.imports]
+useConst = true
+```
+
+If your server uses a different Helix ID, replace `luau` in the table paths;
+the embedded settings namespace remains `luau-lsp`.
+
+Managed Roblox mode is already the default. The settings above are shown for
+shape and can be omitted when the managed defaults are sufficient. For a JSON
+settings file shared with other editors, add `--wrapper-settings` and its path
+to the server's `args` array. See [Configuration sources](#configuration-sources)
+for the accepted file shapes.
