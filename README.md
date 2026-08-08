@@ -79,9 +79,14 @@ environment overrides are `LUAU_LSP_ROBLOX_UPSTREAM` and
 
 `--wrapper-settings` accepts dotted VS Code keys, a nested `luau-lsp` object, or
 the section value itself. Editors can provide the same shapes in
-`initializationOptions.settings`. Wrapper-owned startup settings discovered only
-after initialization are reported as requiring a session restart instead of being
-silently ignored.
+`initializationOptions.settings`. Partial, unsupported, and unclassified
+settings produce compatibility notices; managed platform and loaded definitions
+remain under wrapper control. Restart the LSP session after changing a setting
+that controls a startup-owned resource.
+
+See the [complete configuration reference](CONFIGURATION.md) for every
+upstream setting, its default, scope, and wrapper compatibility. Neovim users
+can start with the [Neovim section](CONFIGURATION.md#neovim).
 
 ## Sourcemaps and Studio
 
