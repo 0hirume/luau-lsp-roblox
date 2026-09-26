@@ -1,6 +1,6 @@
 {
-  "upstream_version": "1.69.0",
-  "upstream_commit": "2f42ede46764cfcc6ad569a395c38bbfd3878342",
+  "upstream_version": "1.70.0",
+  "upstream_commit": "876d84b8caf4454c8df806ddc9eee0565228d7b6",
   "settings": {
     "luau.trace.server": {
       "class": "unsupported",
@@ -251,10 +251,6 @@
       "reason": "Implemented by the language server."
     },
     "luau-lsp.completion.imports.suggestRequires": {
-      "class": "forwarded",
-      "reason": "Implemented by the language server."
-    },
-    "luau-lsp.completion.imports.requireStyle": {
       "class": "forwarded",
       "reason": "Implemented by the language server."
     },
