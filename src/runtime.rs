@@ -1136,7 +1136,7 @@ mod tests {
             Path::new(actual),
             normalize_definition_path(fs::canonicalize(&definition)?)
         );
-        assert!(warnings.is_empty());
+        assert_eq!(warnings, Vec::<String>::new());
         fs::remove_file(definition)?;
         fs::remove_dir(workspace)?;
         Ok(())

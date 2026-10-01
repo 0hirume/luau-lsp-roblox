@@ -101,8 +101,7 @@ fn start_sourcemaps(
     let options = Sourcemap::from_settings(settings);
     let mut handles = Vec::new();
     for root in roots {
-        let path = resolve(root, &options.file);
-        let watch_path = path.clone();
+        let watch_path = resolve(root, &options.file);
         let watch_tx = upstream.clone();
         let watch_stop = Arc::clone(stop);
         handles.push(thread::spawn(move || {
