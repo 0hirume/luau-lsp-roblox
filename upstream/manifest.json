@@ -1,27 +1,27 @@
 {
   "repository": "JohnnyMorganz/luau-lsp",
-  "version": "1.69.0",
-  "commit": "2f42ede46764cfcc6ad569a395c38bbfd3878342",
+  "version": "1.70.1",
+  "commit": "0382dc76ca9b73df3c8e7c9cd85a8dd493cbd0ae",
   "release_assets": {
     "windows-x86_64": {
       "name": "luau-lsp-win64.zip",
-      "sha256": "faea1b177f4761e4c34e0dab72009a2fdd00f21d61f3f7b7c1fe1ac3f38a05d2",
-      "size": 5174617
+      "sha256": "64225b9738102a30de6ee09fb28e5a3827edc402ecf2a6364af570312468159f",
+      "size": 5358589
     },
     "linux-x86_64": {
       "name": "luau-lsp-linux-x86_64.zip",
-      "sha256": "4457aeb690d3c22e04567f38c6259ac259a1673ec022758b9cb81af2a0e66c41",
-      "size": 4310947
+      "sha256": "1a2ea1ae4f98f8946cefd970a4b54853e11ab4775e6932faa7f60cf920346567",
+      "size": 4475341
     },
     "linux-aarch64": {
       "name": "luau-lsp-linux-arm64.zip",
-      "sha256": "b0c78fe40defe71b9fa6381390a590f2040897980a0cf31f0a23c165ad27ebbb",
-      "size": 4039909
+      "sha256": "6062345b95124ca937b8c324b74bc3fddb1d6919ba133c58f8b17945ce1acbc2",
+      "size": 4216137
     },
     "macos-universal": {
       "name": "luau-lsp-macos.zip",
-      "sha256": "4e93204901d892b227a4de15c9d4742176c15e9461d208cadafa1bcd58ec1ae3",
-      "size": 7399452
+      "sha256": "7d3936e8dec6dc77547abd061d2e950da392562a5f94858b880f23dba50d84cd",
+      "size": 7700771
     }
   },
   "roblox": {

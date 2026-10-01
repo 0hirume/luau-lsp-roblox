@@ -1,6 +1,6 @@
 {
-  "upstream_version": "1.69.0",
-  "upstream_commit": "2f42ede46764cfcc6ad569a395c38bbfd3878342",
+  "upstream_version": "1.70.1",
+  "upstream_commit": "0382dc76ca9b73df3c8e7c9cd85a8dd493cbd0ae",
   "settings": {
     "luau.trace.server": {
       "class": "unsupported",
@@ -29,6 +29,10 @@
     "luau-lsp.ignoreGlobs": {
       "class": "forwarded",
       "reason": "Implemented by the language server."
+    },
+    "luau-lsp.analyzeLuaFiles": {
+      "class": "unsupported",
+      "reason": "VS Code document selection and file discovery are editor-owned; configure the editor's LSP filetypes to exclude standard Lua files."
     },
     "luau-lsp.platform.type": {
       "class": "adapted",

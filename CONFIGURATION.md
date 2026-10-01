@@ -1,8 +1,8 @@
 # Configuration
 
 This is the complete configuration reference for the bundled upstream
-`luau-lsp` 1.69.0 server at commit
-`2f42ede46764cfcc6ad569a395c38bbfd3878342`. The setting names, types, defaults,
+`luau-lsp` 1.70.1 server at commit
+`0382dc76ca9b73df3c8e7c9cd85a8dd493cbd0ae`. The setting names, types, defaults,
 scopes, and descriptions come from [`upstream/schema.json`](upstream/schema.json).
 The compatibility column is maintained in
 [`upstream/compatibility.json`](upstream/compatibility.json).
@@ -103,8 +103,8 @@ temporary upstream settings file with `fflags.enableByDefault=true` and
 
 ## Compatibility classes
 
-The registry currently covers all 90 schema settings: 56 are `forwarded`, 26
-are `adapted`, 4 are `partial`, and 4 are `unsupported`.
+The registry currently covers all 91 schema settings: 56 are `forwarded`, 26
+are `adapted`, 4 are `partial`, and 5 are `unsupported`.
 
 - **forwarded** — the upstream server owns the behavior and receives the
   original setting.
@@ -129,6 +129,7 @@ below include every schema key and its classification.
 | `luau-lsp.server.crashReporting.enabled` | boolean                              | `false`            | —        | adapted       | Uploads crash reports to Sentry when the bundled server supports the required arguments.                                              |
 | `luau-lsp.server.baseLuaurc`             | string                               | —                  | window   | adapted       | Path to a `.luaurc` file used as the baseline Luau configuration.                                                                     |
 | `luau-lsp.ignoreGlobs`                   | array of strings                     | `["**/_Index/**"]` | resource | forwarded     | Suppresses diagnostics for matching files unless the file is open.                                                                    |
+| `luau-lsp.analyzeLuaFiles`                | boolean                              | `true`             | window   | unsupported   | Controls VS Code document selection and file discovery. Configure the editor's LSP filetypes to exclude standard Lua files.            |
 | `luau-lsp.platform.type`                 | string: `standard`, `roblox`         | `roblox`           | window   | adapted       | Selects platform-specific support. Managed mode forces this to `roblox`; use `--platform standard` for transparent upstream behavior. |
 
 ## Sourcemaps
@@ -212,7 +213,7 @@ explicit upstream `--definitions` and `--docs` arguments.
 | ------------------------------------------------------------------------- | -------------------------------------------------- | ------------------ | -------- | ------------- | ------------------------------------------------------------------------------------------------------ |
 | `luau-lsp.completion.enabled`                                             | boolean                                            | `true`             | resource | forwarded     | Enables autocomplete.                                                                                  |
 | `luau-lsp.autocompleteEnd`                                                | boolean                                            | `false`            | resource | partial       | Deprecated alias for `completion.autocompleteEnd`; portable completion edits depend on client support. |
-| `luau-lsp.completion.autocompleteEnd`                                     | boolean                                            | `false`            | resource | partial       | Automatically inserts `end` when opening a block; portable support depends on the client.               |
+| `luau-lsp.completion.autocompleteEnd`                                     | boolean                                            | `false`            | resource | partial       | Automatically inserts `end` or `until` for unclosed blocks; portable support depends on the client.    |
 | `luau-lsp.completion.addParentheses`                                      | boolean                                            | `true`             | resource | forwarded     | Adds parentheses after completing a function call.                                                     |
 | `luau-lsp.completion.addTabstopAfterParentheses`                          | boolean                                            | `true`             | resource | forwarded     | Adds a tabstop after inserted call parentheses.                                                        |
 | `luau-lsp.completion.fillCallArguments`                                   | boolean                                            | `true`             | resource | forwarded     | Fills parameter names in an autocompleted call. Requires `addParentheses`.                             |
@@ -229,7 +230,7 @@ explicit upstream `--definitions` and `--docs` arguments.
 | `luau-lsp.completion.imports.includedServices`                            | array of strings                                   | `[]`               | resource | forwarded     | When non-empty, limits auto-imported services to this list.                                            |
 | `luau-lsp.completion.imports.excludedServices`                            | array of strings                                   | `[]`               | resource | forwarded     | Excludes listed services from auto-import.                                                             |
 | `luau-lsp.completion.imports.suggestRequires`                             | boolean                                            | `true`             | resource | forwarded     | Suggests module requires in autocomplete.                                                              |
-| `luau-lsp.completion.imports.requireStyle`                                | string: `auto`, `alwaysRelative`, `alwaysAbsolute` | `auto`             | resource | forwarded     | Selects the style of autogenerated requires.                                                           |
+| `luau-lsp.completion.imports.requireStyle`                                | string: `auto`, `alwaysRelative`, `alwaysAbsolute`, `nearestAbsolute` | `auto` | resource | forwarded | Selects autogenerated require style. `nearestAbsolute` uses the nearest fixed ancestor variable in Roblox projects, falling back to `auto`. |
 | `luau-lsp.completion.imports.stringRequires.enabled`                      | boolean                                            | `false`            | resource | forwarded     | Uses string requires for Roblox auto-imports. Only applies when the platform is Roblox.                |
 | `luau-lsp.completion.imports.separateGroupsWithLine`                      | boolean                                            | `false`            | resource | forwarded     | Separates services and requires with an empty line.                                                    |
 | `luau-lsp.completion.imports.useConst`                                    | boolean                                            | `false`            | resource | forwarded     | Uses `const` instead of `local` for auto-imports.                                                      |
